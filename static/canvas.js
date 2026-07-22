@@ -181,7 +181,7 @@ function saveUserSettings(event) {
 function logoutUser() {
     localStorage.removeItem("ss_name");
     localStorage.removeItem("ss_handle");
-    window.location.href = 'homepage.html';
+    window.location.href = '/';
 }
 
 // ============================================================
