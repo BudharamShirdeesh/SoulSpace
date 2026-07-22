@@ -41,8 +41,7 @@ def init_db():
         ''')
         conn.commit()
 
-        # Backward-compatible migration for a database.db created before these
-        # columns existed, so existing posts aren't lost.
+        # Backward-compatible migration for database schema changes
         existing_cols = [row[1] for row in conn.execute('PRAGMA table_info(posts)').fetchall()]
         if 'canvas_width' not in existing_cols:
             conn.execute('ALTER TABLE posts ADD COLUMN canvas_width REAL DEFAULT 680')
@@ -59,6 +58,7 @@ def allowed_file(filename):
 # PAGE ROUTES
 # ============================================================
 @app.route('/')
+@app.route('/homepage.html')
 def index():
     return render_template('homepage.html')
 
