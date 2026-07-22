@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoulSpace — Express Without The Noise</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+      <div class="nav-logo" onclick="window.location.reload()">SoulSpace</div>
+      <div class="nav-actions">
+        <button class="btn btn-ghost" onclick="window.location.href='auth.html?tab=login'">Log in</button>
+        <button class="btn btn-solid" onclick="window.location.href='auth.html?tab=register'">Get started</button>
+      </div>
+    </nav>
+  
+    <section class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow">A quieter kind of feed</span>
+        <h1 class="headline">Say it 
+            <em>before
+                <svg class="headline-curve" viewBox="0 0 160 14" preserveAspectRatio="none"><path d="M2 10 Q 40 2, 80 8 T 158 6" stroke-linecap="round"/></svg>
+            </em> 
+            it slips away.
+        </h1>
+        <p class="sub">SoulSpace is a workspace for the deep thoughts you can't text anyone — the raw insight, the feeling you are naming, or a layout of your mind. Drag elements onto a completely free-form plain creative white canvas sheet.</p>
+        <div class="hero-ctas">
+          <button class="btn btn-solid" onclick="window.location.href='auth.html?tab=register'">Start writing — it's free</button>
+          <button class="btn btn-outline" onclick="window.location.href='auth.html?tab=login'">I have an account</button>
+        </div>
+      </div>
+  
+      <div class="whisper-field">
+        <div class="whisper-card whisper-1"><span class="tag">Insight</span>I keep rereading old messages to feel something familiar. Maybe that's okay for now.</div>
+        <div class="whisper-card whisper-2"><span class="tag">Feeling</span>Relief, mostly. Turns out saying it out loud made it smaller.</div>
+        <div class="whisper-card whisper-3"><span class="tag">Noticed</span>The 6am light through the kitchen window is doing something to me lately.</div>
+        <div class="whisper-card whisper-4"><span class="tag">Insight</span>Being busy isn't the same as being okay.</div>
+      </div>
+    </section>
+</body>
+</html>

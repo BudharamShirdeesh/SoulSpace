@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoulSpace — Express & Create</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    
+    <!-- Rich Google Docs Typography Suite -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&family=Caveat:wght@600;700&family=Courier+Prime:wght@400;700&family=Dancing+Script:wght@700&family=Fira+Code:wght@500&family=Great+Vibes&family=Inter:wght@400;600;700&family=Lora:ital,wght@0,500;1,400&family=Montserrat:wght@500;700&family=Open+Sans:wght@400;600&family=Oswald:wght@600&family=Pacifico&family=Permanent+Marker&family=Playfair+Display:ital,wght@0,600;1,400&family=Roboto+Mono:wght@500&family=Roboto:wght@400;500;700&family=Sacramento&family=Shadows+Into+Light&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <!-- BRAND TOP NAVBAR -->
+    <nav class="navbar">
+        <div class="nav-logo" onclick="window.location.reload()">SoulSpace</div>
+        
+        <!-- TOP RIGHT: Activity / Notifications Menu -->
+        <div class="nav-right-actions">
+            <button class="icon-nav-btn" onclick="toggleNotificationsMenu(event)" title="Activity">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                <span class="notification-badge"></span>
+            </button>
+
+            <!-- Notifications Dropdown Box -->
+            <div class="notifications-dropdown hidden" id="notifications-dropdown">
+                <div class="notif-header">Activity</div>
+                <div class="notif-list">
+                    <div class="notif-item">
+                        <span class="notif-avatar">AR</span>
+                        <div class="notif-text"><strong>@architect.insights</strong> liked your expression canvas post. <span class="notif-time">10m</span></div>
+                    </div>
+                    <div class="notif-item">
+                        <span class="notif-avatar">MK</span>
+                        <div class="notif-text"><strong>@maya_k</strong> requested to follow you. <span class="notif-time">1h</span></div>
+                        <button class="notif-action-btn" onclick="this.innerText='Following'">Accept</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- REAL-TIME TIMELINE FEED -->
+    <main class="feed-container" id="timeline-feed">
+        <article class="feed-post">
+            <div class="post-header">
+                <div class="post-user-info">
+                    <span class="post-avatar-fallback">AI</span>
+                    <div>
+                        <span class="post-author">@architect.insights</span>
+                        <div class="post-timestamp">Jul 21, 2026 • 12:15 PM</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="post-canvas-content" style="background-color: #faf7f2; position: relative; min-height: 200px; padding: 20px;">
+                <div style="text-align: center;">
+                    <h1 style="font-family: 'Caveat', cursive; font-size: 38px; color: #4338ca; margin-bottom: 8px;">WHY I AM MAKING THIS</h1>
+                    <p style="font-family: 'Caveat', cursive; font-size: 24px; color: #1c1917; line-height: 1.3;">
+                        Every app asks us to be perfect. But real people are messy.<br>
+                        <span style="background-color: #fef08a; padding: 2px 8px; border-radius: 4px;">Leave your mark.</span> One scribble at a time. ✏️
+                    </p>
+                </div>
+            </div>
+
+            <div class="post-actions-bar">
+                <button class="like-btn" onclick="toggleLike(this)">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                    <span class="like-count">24</span>
+                </button>
+                <button class="share-btn" onclick="sharePost()">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                    <span>Share</span>
+                </button>
+            </div>
+        </article>
+    </main>
+
+    <!-- USER SETTINGS & BIO MODAL -->
+    <div class="modal-overlay hidden" id="settings-modal">
+        <div class="settings-card">
+            <div class="settings-header">
+                <h2>Profile & Settings</h2>
+                <button class="card-del-btn" onclick="closeSettingsModal()">&times;</button>
+            </div>
+
+            <form id="settings-form" onsubmit="saveUserSettings(event)">
+                <div class="field-toggle-box">
+                    <div>
+                        <label style="font-weight:700;">Feed Post Display Style</label>
+                        <p style="font-size:11px; color:var(--text-secondary);">Toggle post author display between Username or "Hi [First Name]".</p>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="toggle-display-mode" onchange="previewDisplayToggle(this)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+
+                <div class="field">
+                    <label>Username</label>
+                    <input type="text" id="settings-username" placeholder="@username" required>
+                </div>
+
+                <div class="field">
+                    <label>Change Password</label>
+                    <input type="password" id="settings-password" placeholder="New Password (optional)">
+                </div>
+
+                <div class="field">
+                    <label>Bio</label>
+                    <textarea id="settings-bio" rows="3" placeholder="Tell the world about yourself..." style="width:100%; border-radius:10px; border:1px solid var(--card-border); background:var(--input-bg); color:#fff; padding:10px; font-size:13px;"></textarea>
+                </div>
+
+                <div class="field">
+                    <label>Profile Links</label>
+                    <div id="links-container" style="display:flex; flex-direction:column; gap:8px;"></div>
+                    <button type="button" class="btn btn-outline" style="margin-top:8px; font-size:11px; padding:4px 12px;" onclick="addLinkInput()">+ Add External Link</button>
+                </div>
+
+                <div style="display:flex; gap:10px; margin-top:16px;">
+                    <button type="submit" class="btn btn-solid" style="flex:1;">Save Settings</button>
+                    <button type="button" class="btn btn-outline" style="color:var(--danger);" onclick="logoutUser()">Log Out</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- FULLSCREEN STUDIO CANVAS OVERLAY -->
+    <div class="canvas-overlay hidden" id="creator-canvas-overlay">
+        <div class="canvas-overlay-header">
+            <h3 style="font-size: 1.1rem; font-weight: 700; color: #f8fafc;">Expression Canvas Studio</h3>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn btn-solid" style="padding: 0.4rem 1.2rem; font-size:0.8rem;" onclick="publishCanvasToFeed()">Share to Feed</button>
+                <button class="btn btn-outline" style="padding: 0.4rem 1.2rem; font-size:0.8rem; color:#fff;" onclick="toggleCanvasOverlay(false)">Dismiss</button>
+            </div>
+        </div>
+
+        <!-- EXTENDED MULTI-TOOLBOX BAR -->
+        <div class="studio-toolbox">
+            <!-- Freehand Drawing Controls -->
+            <div class="tool-group">
+                <button class="tool-btn active" id="pen-toggle-btn" onclick="setDrawingTool('pen')">✏️ Pen</button>
+                <button class="tool-btn" id="eraser-toggle-btn" onclick="setDrawingTool('eraser')">🧹 Eraser</button>
+                
+                <input type="color" id="pen-color" value="#4338ca" title="Pen Color" style="width:24px; height:24px; border:none; background:none; cursor:pointer;">
+                <select id="pen-size" style="padding: 3px; border-radius: 4px; font-size: 11px;">
+                    <option value="2">Fine (2px)</option>
+                    <option value="5" selected>Medium (5px)</option>
+                    <option value="15">Marker / Eraser (15px)</option>
+                    <option value="30">Heavy Eraser (30px)</option>
+                </select>
+                <button class="tool-btn" onclick="clearDoodles()">🗑️ Clear Canvas</button>
+            </div>
+            
+            <div class="tool-divider"></div>
+            
+            <!-- Dynamic Content Generators -->
+            <div class="tool-group">
+                <button class="tool-btn" onclick="createRichTextNode()">✍️ Add Text</button>
+                <button class="tool-btn" onclick="createShapeNode()">📐 Add Shape</button>
+                <button class="tool-btn" onclick="createLineNode()">📏 Add Line</button>
+            </div>
+
+            <div class="tool-divider"></div>
+
+            <!-- Media Attachments -->
+            <div class="tool-group">
+                <button class="tool-btn" onclick="triggerAssetUpload('image/*')">📷 Image (25MB)</button>
+                <button class="tool-btn" onclick="triggerAssetUpload('video/mp4')">🎥 Video (10MB/30s)</button>
+                <button class="tool-btn" onclick="triggerAssetUpload('audio/mp3')">🎙️ Audio (30m)</button>
+                <button class="tool-btn" onclick="triggerAssetUpload('.pdf,.txt,.docx')">📄 File (10MB)</button>
+            </div>
+
+            <div class="tool-divider"></div>
+
+            <!-- Paper Background Color -->
+            <div class="tool-group">
+                <span style="font-size:11px; color:#94a3b8; font-weight:600;">Paper Mood:</span>
+                <input type="color" id="canvas-bg-picker" value="#faf7f2" onchange="changeCanvasMoodColor(this.value)" style="width:24px; height:24px; border:none; background:none; cursor:pointer;" title="Pick Paper Color">
+            </div>
+        </div>
+
+        <!-- WORKING CANVAS SPACE -->
+        <div class="canvas-universe" id="canvas-universe">
+            <canvas id="sketch-pad"></canvas>
+            <div class="canvas-instruction-hint">Doodle, write, add shapes, lines, or attach files. Your exact 2D layout posts directly to the feed.</div>
+        </div>
+    </div>
+
+    <input type="file" id="secure-asset-gate" style="display: none;" onchange="handleAssetCapture(event)">
+
+    <!-- INSTAGRAM-STYLE BOTTOM NAVIGATION BAR -->
+    <nav class="bottom-nav">
+        <button class="bottom-nav-item active" onclick="toggleCanvasOverlay(false)" title="Home Feed">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        </button>
+        
+        <button class="bottom-nav-item center-post-btn" onclick="toggleCanvasOverlay(true)" title="Create Expression">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        </button>
+        
+        <!-- Bottom Right Pure Profile Settings Logo Icon -->
+        <button class="bottom-nav-item" onclick="openSettingsModal()" title="Profile & Settings">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:26px; height:26px;">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+        </button>
+    </nav>
+
+    <script src="{{ url_for('static', filename='canvas.js') }}"></script>
+</body>
+</html>
