@@ -1262,3 +1262,29 @@ input:checked + .slider:before { transform: translateX(20px); }
     object-fit: contain;
     pointer-events: none;
 }
+
+/* Enable playback controls inside published feed posts */
+.post-canvas-content video,
+.post-canvas-content audio {
+    pointer-events: auto !important;
+    position: relative !important;
+    z-index: 10 !important;
+}
+
+.post-canvas-content .canvas-direct-element {
+    pointer-events: auto !important;
+}
+
+/* Ensure scaled elements retain position and visibility inside published posts */
+.post-canvas-content .canvas-direct-element {
+    position: absolute !important;
+    pointer-events: auto !important;
+    box-sizing: border-box !important;
+}
+
+.post-canvas-content video,
+.post-canvas-content audio,
+.post-canvas-content img {
+    max-width: 100% !important;
+    pointer-events: auto !important;
+}
