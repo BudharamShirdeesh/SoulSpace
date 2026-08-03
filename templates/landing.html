@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     
     <!-- Rich Google Docs Typography Suite -->
+    <!-- Google Fonts Suite -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Amatic+SC:wght@700&family=Caveat:wght@600;700&family=Courier+Prime:wght@400;700&family=Dancing+Script:wght@700&family=Fira+Code:wght@500&family=Great+Vibes&family=Inter:wght@400;600;700&family=Lora:ital,wght@0,500;1,400&family=Montserrat:wght@500;700&family=Open+Sans:wght@400;600&family=Oswald:wght@600&family=Pacifico&family=Permanent+Marker&family=Playfair+Display:ital,wght@0,600;1,400&family=Roboto+Mono:wght@500&family=Roboto:wght@400;500;700&family=Sacramento&family=Shadows+Into+Light&display=swap" rel="stylesheet">
@@ -178,7 +179,7 @@
             <!-- Paper Background Color -->
             <div class="tool-group">
                 <span style="font-size:11px; color:#94a3b8; font-weight:600;">Paper Mood:</span>
-                <input type="color" id="canvas-bg-picker" value="#faf7f2" onchange="changeCanvasMoodColor(this.value)" style="width:24px; height:24px; border:none; background:none; cursor:pointer;" title="Pick Paper Color">
+                <input type="color" id="canvas-bg-picker" value="#ffffff" oninput="changeCanvasMoodColor(this.value)" onchange="changeCanvasMoodColor(this.value)" style="width:24px; height:24px; border:none; background:none; cursor:pointer;" title="Pick Paper Color">
             </div>
         </div>
 
