@@ -2,8 +2,6 @@
 // GLOBAL STATE & FLASK API INTEGRATION
 // ============================================================
 let totalUploadedImageSizeMB = 0;
-let currentLoginMethod = 'gmail';
-let currentRegisterMethod = 'gmail';
 
 document.addEventListener("DOMContentLoaded", () => {
     loadGlobalFeedFromBackend();
@@ -17,21 +15,23 @@ function loadGlobalFeedFromBackend() {
     fetch('/api/posts')
         .then(response => response.json())
         .then(data => {
-            if (data.status === 'success' && data.posts) {
-                timeline.innerHTML = ''; // Clear placeholder static content
+            if (data.status === 'success' && Array.isArray(data.posts)) {
+                timeline.innerHTML = '';
+                if (data.posts.length === 0) {
+                    timeline.innerHTML = '<p style="text-align:center; color:#94a3b8; margin-top:2rem;">No posts yet. Be the first to express yourself!</p>';
+                    return;
+                }
                 data.posts.forEach(post => renderPostToFeed(post));
             }
         })
-        .catch(err => console.error("Error loading global feed:", err));
+        .catch(err => console.error("Error loading community feed:", err));
 }
 
 function renderPostToFeed(post) {
     const timeline = document.getElementById('timeline-feed');
     if (!timeline) return;
 
-    // Fall back to sane defaults for posts saved before canvas_width/height existed
-    const canvasWidth = post.canvas_width || 680;
-    const canvasHeight = post.canvas_height || 400;
+    const postHeight = post.canvas_height || 400;
 
     const article = document.createElement('article');
     article.className = 'feed-post dynamic-new-post-animation';
@@ -46,9 +46,9 @@ function renderPostToFeed(post) {
             </div>
         </div>
 
-        <div class="post-canvas-content" style="background-color: ${post.bg_color || '#ffffff'}; display:block; padding:0; position: relative; width: 100%; aspect-ratio: ${canvasWidth} / ${canvasHeight}; overflow: hidden; border-radius: 12px; border: 1px solid #e5e0d8;">
-            ${post.doodle_layer ? `<img src="${post.doodle_layer}" class="post-doodle-layer" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:1;">` : ''}
-            <div class="post-2d-viewport" style="position: absolute; top: 0; left: 0; width: ${canvasWidth}px; height: ${canvasHeight}px; transform-origin: top left; z-index: 2;">
+        <div class="post-canvas-content" style="background-color: ${post.bg_color || '#ffffff'}; position: relative; width: 100%; min-height: ${postHeight}px; overflow: hidden; border-radius: 12px; border: 1px solid #e5e0d8;">
+            ${post.doodle_layer ? `<img src="${post.doodle_layer}" class="post-doodle-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:1;">` : ''}
+            <div class="post-2d-viewport" style="position: absolute; top:0; left:0; width: 100%; height: 100%; z-index: 2;">
                 ${post.html_content}
             </div>
         </div>
@@ -65,28 +65,6 @@ function renderPostToFeed(post) {
         </div>
     `;
     timeline.appendChild(article);
-
-    // Scale the fixed-size (canvasWidth x canvasHeight) composite down to whatever
-    // width the card actually renders at - uniformly, like shrinking a screenshot.
-    // This is what keeps fonts/borders/padding proportional across screen sizes,
-    // instead of the earlier percentage-per-element approach that let text overflow
-    // its own box on narrower cards.
-    const contentBox = article.querySelector('.post-canvas-content');
-    const viewport = article.querySelector('.post-2d-viewport');
-    if (contentBox && viewport) {
-        const applyScale = () => {
-            const scale = contentBox.clientWidth / canvasWidth;
-            if (scale > 0 && isFinite(scale)) {
-                viewport.style.transform = `scale(${scale})`;
-            }
-        };
-        applyScale();
-        if (window.ResizeObserver) {
-            new ResizeObserver(applyScale).observe(contentBox);
-        } else {
-            window.addEventListener('resize', applyScale);
-        }
-    }
 }
 
 // NOTIFICATIONS & SETTINGS MODALS
@@ -185,7 +163,7 @@ function logoutUser() {
 }
 
 // ============================================================
-// CANVAS DRAWING & SKETCH ENGINE
+// CANVAS DRAWING & SKETCH ENGINE (WITH iOS TOUCH SUPPORT)
 // ============================================================
 const universe = document.getElementById('canvas-universe');
 const assetGate = document.getElementById('secure-asset-gate');
@@ -215,7 +193,7 @@ window.addEventListener('resize', () => { if (overlay && !overlay.classList.cont
 function toggleCanvasOverlay(shouldShow) {
     if (shouldShow) {
         overlay.classList.remove('hidden');
-        totalUploadedImageSizeMB = 0; // Reset image quota for new post creation
+        totalUploadedImageSizeMB = 0;
         setTimeout(() => {
             initPad();
             clearDoodles();
@@ -247,79 +225,124 @@ function clearDoodles() {
     if (ctx && pad) ctx.clearRect(0, 0, pad.width, pad.height);
 }
 
-// DRAWING LISTENERS
+// HELPER TO EXTRACT TOUCH OR MOUSE COORDINATES (iOS FIX)
+function getPointerPos(e) {
+    const rect = pad.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+        x: clientX - rect.left,
+        y: clientY - rect.top
+    };
+}
+
+function startStroke(e) {
+    if (e.target !== pad) return;
+    isDrawing = true;
+    const pos = getPointerPos(e);
+    ctx.beginPath();
+    ctx.moveTo(pos.x, pos.y);
+}
+
+function drawStroke(e) {
+    if (!isDrawing) return;
+    if (e.cancelable) e.preventDefault(); // Prevent iOS page scrolling while drawing
+    const pos = getPointerPos(e);
+
+    ctx.lineWidth = document.getElementById('pen-size').value;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (currentTool === 'eraser') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+    } else {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = document.getElementById('pen-color').value;
+        ctx.lineTo(pos.x, pos.y);
+        ctx.stroke();
+    }
+}
+
+function endStroke() {
+    isDrawing = false;
+    if (ctx) ctx.beginPath();
+}
+
+// ATTACH BOTH MOUSE & iOS TOUCH LISTENERS
 if (pad) {
-    pad.addEventListener('mousedown', (e) => {
-        isDrawing = true;
-        const rect = pad.getBoundingClientRect();
-        ctx.beginPath();
-        ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
-    });
+    pad.addEventListener('mousedown', startStroke);
+    pad.addEventListener('mousemove', drawStroke);
+    pad.addEventListener('mouseup', endStroke);
+    pad.addEventListener('mouseleave', endStroke);
 
-    pad.addEventListener('mousemove', (e) => {
-        if (!isDrawing) return;
-        const rect = pad.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-
-        ctx.lineWidth = document.getElementById('pen-size').value;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-
-        if (currentTool === 'eraser') {
-            ctx.globalCompositeOperation = 'destination-out';
-            ctx.lineTo(x, y);
-            ctx.stroke();
-        } else {
-            ctx.globalCompositeOperation = 'source-over';
-            ctx.strokeStyle = document.getElementById('pen-color').value;
-            ctx.lineTo(x, y);
-            ctx.stroke();
-        }
-    });
-
-    pad.addEventListener('mouseup', () => { isDrawing = false; ctx.beginPath(); });
-    pad.addEventListener('mouseleave', () => { isDrawing = false; ctx.beginPath(); });
+    pad.addEventListener('touchstart', startStroke, { passive: false });
+    pad.addEventListener('touchmove', drawStroke, { passive: false });
+    pad.addEventListener('touchend', endStroke);
 }
 
-// DRAGGABLE & RESIZABLE ELEMENTS ENGINE
+// DRAGGABLE & RESIZABLE ELEMENTS ENGINE (WITH iOS TOUCH DRAGGING)
 function makeElementInteractive(element) {
-    element.addEventListener('mousedown', (e) => {
-        if (e.target.closest('.element-delete-btn') || e.target.closest('.element-resize-handle') || ['INPUT', 'SELECT', 'A', 'VIDEO', 'AUDIO', 'BUTTON'].includes(e.target.tagName)) return;
+    const startDrag = (e) => {
+        if (e.target.closest('.element-delete-btn') || e.target.closest('.element-resize-handle') || ['INPUT', 'SELECT', 'OPTION'].includes(e.target.tagName)) return;
+
+        const dragOverlay = element.querySelector('.audio-drag-overlay');
+        if (dragOverlay && e.detail > 1) {
+            dragOverlay.style.pointerEvents = 'none';
+            setTimeout(() => { dragOverlay.style.pointerEvents = 'auto'; }, 3000);
+            return;
+        }
+
         activeElement = element;
-        startX = e.clientX - element.offsetLeft;
-        startY = e.clientY - element.offsetTop;
+        const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        startX = clientX - element.offsetLeft;
+        startY = clientY - element.offsetTop;
         element.style.zIndex = ++CanvasZIndexCounter;
-    });
+    };
+
+    element.addEventListener('mousedown', startDrag);
+    element.addEventListener('touchstart', startDrag, { passive: true });
 }
 
-document.addEventListener('mousemove', (e) => {
+function moveActiveElement(e) {
     if (!activeElement) return;
-    activeElement.style.left = `${e.clientX - startX}px`;
-    activeElement.style.top = `${e.clientY - startY}px`;
-});
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-document.addEventListener('mouseup', () => { activeElement = null; });
+    activeElement.style.left = `${clientX - startX}px`;
+    activeElement.style.top = `${clientY - startY}px`;
+}
+
+function stopActiveElement() {
+    activeElement = null;
+}
+
+document.addEventListener('mousemove', moveActiveElement);
+document.addEventListener('mouseup', stopActiveElement);
+
+document.addEventListener('touchmove', moveActiveElement, { passive: true });
+document.addEventListener('touchend', stopActiveElement);
 
 function injectCanvasNode(htmlContent) {
     const card = document.createElement('div');
     card.className = 'canvas-direct-element';
-    card.style.left = `${Math.floor(Math.random() * 80) + 40}px`;
-    card.style.top = `${Math.floor(Math.random() * 80) + 60}px`;
+    card.style.left = `${Math.floor(Math.random() * 60) + 30}px`;
+    card.style.top = `${Math.floor(Math.random() * 60) + 40}px`;
     card.style.zIndex = ++CanvasZIndexCounter;
     card.style.position = 'absolute';
-    card.style.width = '260px';
+    card.style.width = '240px';
 
     card.innerHTML = htmlContent;
 
-    // Delete Button
     const delBtn = document.createElement('button');
     delBtn.className = 'element-delete-btn';
     delBtn.innerHTML = '&times;';
     delBtn.onclick = () => card.remove();
     card.appendChild(delBtn);
 
-    // Resize Handle
     const resizeHandle = document.createElement('div');
     resizeHandle.className = 'element-resize-handle';
     resizeHandle.title = 'Drag to Resize';
@@ -327,18 +350,21 @@ function injectCanvasNode(htmlContent) {
     let isResizing = false;
     let initialWidth, initialHeight, initialX, initialY;
 
-    resizeHandle.addEventListener('mousedown', (e) => {
+    const startResize = (e) => {
         e.stopPropagation();
         isResizing = true;
         initialWidth = card.offsetWidth;
         initialHeight = card.offsetHeight;
-        initialX = e.clientX;
-        initialY = e.clientY;
+        initialX = e.touches ? e.touches[0].clientX : e.clientX;
+        initialY = e.touches ? e.touches[0].clientY : e.clientY;
 
-        const onMouseMove = (moveEvent) => {
+        const onMove = (moveEvent) => {
             if (!isResizing) return;
-            const newWidth = Math.max(80, initialWidth + (moveEvent.clientX - initialX));
-            const newHeight = Math.max(30, initialHeight + (moveEvent.clientY - initialY));
+            const currentX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
+            const currentY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
+
+            const newWidth = Math.max(80, initialWidth + (currentX - initialX));
+            const newHeight = Math.max(30, initialHeight + (currentY - initialY));
             
             card.style.width = `${newWidth}px`;
             card.style.height = `${newHeight}px`;
@@ -365,15 +391,22 @@ function injectCanvasNode(htmlContent) {
             }
         };
 
-        const onMouseUp = () => {
+        const onEnd = () => {
             isResizing = false;
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onEnd);
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('touchend', onEnd);
         };
 
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-    });
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onEnd);
+        document.addEventListener('touchmove', onMove, { passive: true });
+        document.addEventListener('touchend', onEnd);
+    };
+
+    resizeHandle.addEventListener('mousedown', startResize);
+    resizeHandle.addEventListener('touchstart', startResize, { passive: true });
 
     card.appendChild(resizeHandle);
     universe.appendChild(card);
@@ -416,7 +449,7 @@ function insertEmoji(selectEl, emojiChar) {
     selectEl.value = "";
 }
 
-// 1. RICH TEXT BLOCK ENGINE (EXPANDED FONTS + EMOJI)
+// 1. RICH TEXT BLOCK ENGINE
 function createRichTextNode() {
     const html = `
         <div class="rich-text-wrapper" style="display: flex; flex-direction: column; gap: 4px; padding: 2px; background: transparent; border: none; box-shadow: none; width: 100%; box-sizing: border-box;">
@@ -429,7 +462,6 @@ function createRichTextNode() {
                     <option value="h3">Heading 1</option>
                 </select>
 
-                <!-- EXPANDED FONT TYPOGRAPHY SUITE -->
                 <select onchange="formatDoc(this, 'fontName', this.value)" style="font-size:10px; padding:2px; max-width:110px;" title="Font Family">
                     <optgroup label="Handwriting / Cursive">
                         <option value="'Caveat', cursive" selected>Caveat</option>
@@ -472,7 +504,6 @@ function createRichTextNode() {
                     <option value="48px">48</option>
                 </select>
 
-                <!-- META EMOJI PICKER -->
                 <select onchange="insertEmoji(this, this.value)" style="font-size:10px; padding:2px; width:45px;" title="Insert Emoji">
                     <option value="">😀</option>
                     <option value="❤️">❤️ Heart</option>
@@ -507,7 +538,7 @@ function createRichTextNode() {
     injectCanvasNode(html);
 }
 
-// 2. VECTOR SHAPES ENGINE WITH STRICT BOUNDS
+// 2. VECTOR SHAPES ENGINE
 function createShapeNode() {
     const shapeId = 'shape-' + Date.now();
     const html = `
@@ -548,7 +579,7 @@ function applyShapeType(elementId, shapeType) {
     }
 }
 
-// 3. LINES ENGINE WITH RESIZING
+// 3. LINES ENGINE
 function createLineNode() {
     const lineId = 'line-' + Date.now();
     const html = `
@@ -591,7 +622,7 @@ function updateLinePath(lineId, styleType) {
     else if (styleType === 'arrow') path.setAttribute('d', 'M 0 50 L 92 50 M 80 35 L 98 50 L 80 65');
 }
 
-// 4. MEDIA ATTACHMENTS WITH CUMULATIVE 25MB LIMIT & FLASK UPLOAD
+// 4. MEDIA ATTACHMENTS WITH CUMULATIVE 25MB LIMIT
 function triggerAssetUpload(mime) {
     if (!assetGate) return;
     assetGate.accept = mime;
@@ -612,7 +643,6 @@ function handleAssetCapture(event) {
     if (targetUploadType.includes('image')) {
         const newBatchSizeMB = files.reduce((acc, file) => acc + (file.size / (1024 * 1024)), 0);
 
-        // Enforce 25MB cumulative upload limit
         if (totalUploadedImageSizeMB + newBatchSizeMB > 25) {
             const remainingMB = Math.max(0, 25 - totalUploadedImageSizeMB).toFixed(2);
             alert(`Upload rejected! Image limit is 25MB total across all images.\n\nCurrently Used: ${totalUploadedImageSizeMB.toFixed(2)} MB\nRemaining Space: ${remainingMB} MB\nAttempted Upload: ${newBatchSizeMB.toFixed(2)} MB`);
@@ -625,7 +655,6 @@ function handleAssetCapture(event) {
             createCollage = confirm(`You selected ${files.length} images.\n\nClick "OK" to insert as a unified Collage Grid.\nClick "Cancel" to insert as individual draggable images.`);
         }
 
-        // Upload images to Flask backend storage
         const uploadPromises = files.map(file => {
             const formData = new FormData();
             formData.append('file', file);
@@ -665,21 +694,47 @@ function handleAssetCapture(event) {
             .then(res => res.json())
             .then(data => {
                 const src = data.url || URL.createObjectURL(file);
-                injectCanvasNode(`<div style="width:100%; height:100%;"><video src="${src}" controls style="width:100%; height:100%; border-radius:6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"></video></div>`);
+                injectCanvasNode(`
+                    <div class="resizable-media-wrapper" style="width: 100%; height: 100%; position: relative;">
+                        <video src="${src}" controls style="width: 100%; height: 100%; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"></video>
+                    </div>
+                `);
+            });
+
+    } else if (targetUploadType.includes('audio')) {
+        const file = files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+        fetch('/api/upload', { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(data => {
+                const src = data.url || URL.createObjectURL(file);
+                injectCanvasNode(`
+                    <div class="clean-audio-wrapper" style="width: 100%; position: relative; background: transparent; padding: 4px; border-radius: 30px;">
+                        <div class="audio-drag-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; cursor: move;"></div>
+                        <audio src="${src}" controls style="width: 100%; height: 40px; display: block; position: relative; z-index: 1; border-radius: 30px;"></audio>
+                    </div>
+                `);
             });
 
     } else {
         const file = files[0];
-        const src = URL.createObjectURL(file);
-        injectCanvasNode(`
-            <div style="padding:8px 12px; display:flex; align-items:center; gap:8px; width:220px; background: #ffffff; border: 1px solid #d6d3d1; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
-                <span style="font-size:20px;">📄</span>
-                <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;">
-                    <a href="${src}" download="${file.name}" style="font-size:12px; color:#2563eb; font-weight:700;">${file.name}</a>
-                    <span style="display:block; font-size:10px; color:#78716c;">${(file.size / (1024*1024)).toFixed(2)} MB</span>
-                </div>
-            </div>
-        `);
+        const formData = new FormData();
+        formData.append('file', file);
+        fetch('/api/upload', { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(data => {
+                const src = data.url || URL.createObjectURL(file);
+                injectCanvasNode(`
+                    <div class="resizable-file-wrapper" style="padding: 8px 12px; display: flex; align-items: center; gap: 8px; width: 100%; background: #ffffff; border: 1px solid #d6d3d1; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+                        <span style="font-size: 20px;">📄</span>
+                        <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">
+                            <a href="${src}" target="_blank" style="font-size: 12px; color: #2563eb; font-weight: 700;">${file.name}</a>
+                            <span style="display: block; font-size: 10px; color: #78716c;">${(file.size / (1024*1024)).toFixed(2)} MB</span>
+                        </div>
+                    </div>
+                `);
+            });
     }
 
     assetGate.value = '';
@@ -702,8 +757,7 @@ function sharePost() {
     alert('Post link copied to clipboard!');
 }
 
-// 5. PUBLISH CANVAS TO FLASK SERVER
-// PUBLISH CANVAS TO FLASK SERVER WITH RESPONSIVE PERCENTAGE LAYOUT
+// 5. PUBLISH CANVAS DIRECT TO FEED
 function publishCanvasToFeed() {
     const directElements = universe.querySelectorAll('.canvas-direct-element');
     const doodleDataUrl = pad ? pad.toDataURL() : null;
@@ -714,42 +768,39 @@ function publishCanvasToFeed() {
         return;
     }
 
-    // Capture the editor's exact pixel dimensions. The doodle layer (pad.width/height)
-    // is drawn at this same size. Elements below keep their ORIGINAL pixel left/top/
-    // width/height - the feed rebuilds this exact box, then uniformly scales the whole
-    // thing down to fit the card (like shrinking a screenshot). That keeps fonts,
-    // borders, and padding all proportional instead of text overflowing its box.
-    const canvasWidth = universe.clientWidth || 680;
-    const canvasHeight = universe.clientHeight || 400;
+    let maxBottomPx = 300;
 
     let compositeElementsHTML = '';
     directElements.forEach(element => {
         const clone = element.cloneNode(true);
 
-        // Remove interactive editor tools
-        clone.querySelectorAll('.docs-toolbar, .element-delete-btn, .element-resize-handle, select, input, button, .line-control-panel, .floating-editor-tools').forEach(ui => ui.remove());
+        clone.querySelectorAll('.docs-toolbar, .element-delete-btn, .element-resize-handle, select, input, button, .line-control-panel, .floating-editor-tools, .media-drag-header, .audio-drag-overlay').forEach(ui => ui.remove());
 
         clone.querySelectorAll('[contenteditable="true"]').forEach(editable => {
             editable.removeAttribute('contenteditable');
             editable.style.outline = 'none';
         });
 
-        const leftPx = parseFloat(element.style.left) || 0;
         const topPx = parseFloat(element.style.top) || 0;
-        const widthPx = parseFloat(element.style.width) || element.offsetWidth || 200;
-        const heightPx = element.offsetHeight || 100;
+        const elemHeight = element.offsetHeight || 100;
+
+        if (topPx + elemHeight > maxBottomPx) {
+            maxBottomPx = topPx + elemHeight;
+        }
 
         clone.style.position = 'absolute';
-        clone.style.left = `${leftPx}px`;
-        clone.style.top = `${topPx}px`;
-        clone.style.width = `${widthPx}px`;
-        clone.style.height = `${heightPx}px`;
+        clone.style.left = element.style.left;
+        clone.style.top = element.style.top;
+        clone.style.width = element.style.width;
+        if (element.style.height) clone.style.height = element.style.height;
         clone.style.zIndex = element.style.zIndex || 10;
         if (element.style.transform) clone.style.transform = element.style.transform;
         clone.style.pointerEvents = 'none';
 
         compositeElementsHTML += clone.outerHTML;
     });
+
+    const totalCanvasHeight = maxBottomPx + 40;
 
     const now = new Date();
     const formattedTimestamp = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -765,8 +816,7 @@ function publishCanvasToFeed() {
         bg_color: currentCanvasBgColor,
         doodle_layer: hasDoodles ? doodleDataUrl : null,
         html_content: compositeElementsHTML,
-        canvas_width: canvasWidth,
-        canvas_height: canvasHeight
+        canvas_height: totalCanvasHeight
     };
 
     fetch('/api/posts', {
