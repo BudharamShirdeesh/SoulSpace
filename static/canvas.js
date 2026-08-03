@@ -31,7 +31,8 @@ function renderPostToFeed(post) {
     const timeline = document.getElementById('timeline-feed');
     if (!timeline) return;
 
-    const postHeight = post.canvas_height || 400;
+    const baseWidth = post.canvas_width || 680;
+    const baseHeight = post.canvas_height || 400;
 
     const article = document.createElement('article');
     article.className = 'feed-post dynamic-new-post-animation';
@@ -46,9 +47,9 @@ function renderPostToFeed(post) {
             </div>
         </div>
 
-        <div class="post-canvas-content" style="background-color: ${post.bg_color || '#ffffff'}; position: relative; width: 100%; min-height: ${postHeight}px; overflow: hidden; border-radius: 12px; border: 1px solid #e5e0d8;">
-            ${post.doodle_layer ? `<img src="${post.doodle_layer}" class="post-doodle-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:1;">` : ''}
-            <div class="post-2d-viewport" style="position: absolute; top:0; left:0; width: 100%; height: 100%; z-index: 2;">
+        <div class="post-canvas-content" data-base-width="${baseWidth}" data-base-height="${baseHeight}" style="background-color: ${post.bg_color || '#ffffff'}; position: relative; width: 100%; aspect-ratio: ${baseWidth} / ${baseHeight}; overflow: hidden; border-radius: 12px; border: 1px solid #e5e0d8;">
+            ${post.doodle_layer ? `<img src="${post.doodle_layer}" class="post-doodle-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:contain; pointer-events:none; z-index:1;">` : ''}
+            <div class="post-2d-viewport" style="position: absolute; top:0; left:0; width: ${baseWidth}px; height: ${baseHeight}px; z-index: 2; transform-origin: 0 0;">
                 ${post.html_content}
             </div>
         </div>
@@ -65,7 +66,30 @@ function renderPostToFeed(post) {
         </div>
     `;
     timeline.appendChild(article);
+    
+    setTimeout(applyResponsiveFeedScaling, 20);
 }
+
+function applyResponsiveFeedScaling() {
+    const postContainers = document.querySelectorAll('.post-canvas-content');
+    postContainers.forEach(container => {
+        const baseWidth = parseFloat(container.getAttribute('data-base-width')) || 680;
+        const currentWidth = container.clientWidth;
+
+        if (currentWidth > 0 && baseWidth > 0) {
+            const scaleFactor = currentWidth / baseWidth;
+            const viewport = container.querySelector('.post-2d-viewport');
+
+            if (viewport) {
+                viewport.style.transform = `scale(${scaleFactor})`;
+                viewport.style.webkitTransform = `scale(${scaleFactor})`;
+            }
+        }
+    });
+}
+
+window.addEventListener('resize', applyResponsiveFeedScaling);
+window.addEventListener('orientationchange', applyResponsiveFeedScaling);
 
 // NOTIFICATIONS & SETTINGS MODALS
 function toggleNotificationsMenu(event) {
@@ -194,20 +218,35 @@ function toggleCanvasOverlay(shouldShow) {
     if (shouldShow) {
         overlay.classList.remove('hidden');
         totalUploadedImageSizeMB = 0;
+        
+        // Reset studio paper mood to default white preview
+        currentCanvasBgColor = '#ffffff';
+        if (universe) universe.style.backgroundColor = '#ffffff';
+        const colorPicker = document.getElementById('canvas-bg-picker');
+        if (colorPicker) colorPicker.value = '#ffffff';
+
         setTimeout(() => {
             initPad();
             clearDoodles();
             setDrawingTool('pen');
         }, 50);
+        
         if (universe) universe.querySelectorAll('.canvas-direct-element').forEach(el => el.remove());
     } else {
         if (overlay) overlay.classList.add('hidden');
     }
 }
 
+// LIVE PAPER MOOD PREVIEW HANDLER
+// LIVE PAPER MOOD PREVIEW ENGINE
 function changeCanvasMoodColor(colorHex) {
     currentCanvasBgColor = colorHex;
-    if (universe) universe.style.backgroundColor = colorHex;
+    
+    const universe = document.getElementById('canvas-universe');
+    if (universe) {
+        // Force live background color preview on the studio sheet
+        universe.style.setProperty('background-color', colorHex, 'important');
+    }
 }
 
 function setDrawingTool(tool) {
@@ -450,6 +489,7 @@ function insertEmoji(selectEl, emojiChar) {
 }
 
 // 1. RICH TEXT BLOCK ENGINE
+// 1. RICH TEXT BLOCK ENGINE (ROBUST GOOGLE FONTS)
 function createRichTextNode() {
     const html = `
         <div class="rich-text-wrapper" style="display: flex; flex-direction: column; gap: 4px; padding: 2px; background: transparent; border: none; box-shadow: none; width: 100%; box-sizing: border-box;">
@@ -462,35 +502,36 @@ function createRichTextNode() {
                     <option value="h3">Heading 1</option>
                 </select>
 
-                <select onchange="formatDoc(this, 'fontName', this.value)" style="font-size:10px; padding:2px; max-width:110px;" title="Font Family">
+                <!-- CLEAN FONT SELECTION -->
+                <select onchange="applyFontFamily(this, this.value)" style="font-size:10px; padding:2px; max-width:110px;" title="Font Family">
                     <optgroup label="Handwriting / Cursive">
-                        <option value="'Caveat', cursive" selected>Caveat</option>
-                        <option value="'Pacifico', cursive">Pacifico</option>
-                        <option value="'Dancing Script', cursive">Dancing Script</option>
-                        <option value="'Great Vibes', cursive">Great Vibes</option>
-                        <option value="'Permanent Marker', cursive">Marker</option>
-                        <option value="'Sacramento', cursive">Sacramento</option>
-                        <option value="'Shadows Into Light', cursive">Shadows</option>
-                        <option value="'Amatic SC', cursive">Amatic SC</option>
+                        <option value="Caveat, cursive" selected>Caveat</option>
+                        <option value="Pacifico, cursive">Pacifico</option>
+                        <option value="Dancing Script, cursive">Dancing Script</option>
+                        <option value="Great Vibes, cursive">Great Vibes</option>
+                        <option value="Permanent Marker, cursive">Marker</option>
+                        <option value="Sacramento, cursive">Sacramento</option>
+                        <option value="Shadows Into Light, cursive">Shadows</option>
+                        <option value="Amatic SC, cursive">Amatic SC</option>
                     </optgroup>
                     <optgroup label="Sans-Serif">
-                        <option value="Arial">Arial</option>
-                        <option value="'Inter', sans-serif">Inter</option>
-                        <option value="'Roboto', sans-serif">Roboto</option>
-                        <option value="'Open Sans', sans-serif">Open Sans</option>
-                        <option value="'Montserrat', sans-serif">Montserrat</option>
+                        <option value="Arial, sans-serif">Arial</option>
+                        <option value="Inter, sans-serif">Inter</option>
+                        <option value="Roboto, sans-serif">Roboto</option>
+                        <option value="Open Sans, sans-serif">Open Sans</option>
+                        <option value="Montserrat, sans-serif">Montserrat</option>
                     </optgroup>
                     <optgroup label="Serif">
-                        <option value="'Times New Roman', serif">Times New Roman</option>
-                        <option value="'Georgia', serif">Georgia</option>
-                        <option value="'Playfair Display', serif">Playfair</option>
-                        <option value="'Lora', serif">Lora</option>
+                        <option value="Times New Roman, serif">Times New Roman</option>
+                        <option value="Georgia, serif">Georgia</option>
+                        <option value="Playfair Display, serif">Playfair</option>
+                        <option value="Lora, serif">Lora</option>
                     </optgroup>
                     <optgroup label="Display / Monospace">
-                        <option value="'Oswald', sans-serif">Oswald</option>
-                        <option value="'Courier Prime', monospace">Courier Prime</option>
-                        <option value="'Fira Code', monospace">Fira Code</option>
-                        <option value="'Roboto Mono', monospace">Roboto Mono</option>
+                        <option value="Oswald, sans-serif">Oswald</option>
+                        <option value="Courier Prime, monospace">Courier Prime</option>
+                        <option value="Fira Code, monospace">Fira Code</option>
+                        <option value="Roboto Mono, monospace">Roboto Mono</option>
                     </optgroup>
                 </select>
 
@@ -532,12 +573,11 @@ function createRichTextNode() {
                 <input type="color" value="#fef08a" onchange="formatDoc(this, 'hiliteColor', this.value)" style="width:16px; height:16px; border:none; background:none; cursor:pointer;" title="Highlight Color">
             </div>
 
-            <div class="docs-editable-editor" contenteditable="true" style="width: 100%; min-height: 40px; padding: 4px; outline: none; font-family: 'Caveat', cursive; font-size: 22px; color: #1c1917; background: transparent; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap;">Type text here...</div>
+            <div class="docs-editable-editor" contenteditable="true" style="width: 100%; min-height: 40px; padding: 4px; outline: none; font-family: Caveat, cursive; font-size: 22px; color: #1c1917; background: transparent; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap;">Type text here...</div>
         </div>
     `;
     injectCanvasNode(html);
 }
-
 // 2. VECTOR SHAPES ENGINE
 function createShapeNode() {
     const shapeId = 'shape-' + Date.now();
@@ -684,38 +724,40 @@ function handleAssetCapture(event) {
             totalUploadedImageSizeMB += newBatchSizeMB;
         });
 
-    } else if (targetUploadType.includes('video')) {
-        const file = files[0];
-        if (file.size / (1024 * 1024) > 10) { alert("Video capped at 10MB (30s max limit)."); return; }
-        
-        const formData = new FormData();
-        formData.append('file', file);
-        fetch('/api/upload', { method: 'POST', body: formData })
-            .then(res => res.json())
-            .then(data => {
-                const src = data.url || URL.createObjectURL(file);
-                injectCanvasNode(`
-                    <div class="resizable-media-wrapper" style="width: 100%; height: 100%; position: relative;">
-                        <video src="${src}" controls style="width: 100%; height: 100%; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);"></video>
-                    </div>
-                `);
-            });
+    // VIDEO ATTACHMENT
+} else if (targetUploadType.includes('video')) {
+    const file = files[0];
+    if (file.size / (1024 * 1024) > 10) { alert("Video capped at 10MB (30s max limit)."); return; }
+    
+    const formData = new FormData();
+    formData.append('file', file);
+    fetch('/api/upload', { method: 'POST', body: formData })
+        .then(res => res.json())
+        .then(data => {
+            const src = data.url || URL.createObjectURL(file);
+            injectCanvasNode(`
+                <div class="resizable-media-wrapper" style="width: 100%; height: 100%; position: relative;">
+                    <video src="${src}" controls playsinline style="width: 100%; height: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); object-fit: cover;"></video>
+                </div>
+            `);
+        });
 
-    } else if (targetUploadType.includes('audio')) {
-        const file = files[0];
-        const formData = new FormData();
-        formData.append('file', file);
-        fetch('/api/upload', { method: 'POST', body: formData })
-            .then(res => res.json())
-            .then(data => {
-                const src = data.url || URL.createObjectURL(file);
-                injectCanvasNode(`
-                    <div class="clean-audio-wrapper" style="width: 100%; position: relative; background: transparent; padding: 4px; border-radius: 30px;">
-                        <div class="audio-drag-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; cursor: move;"></div>
-                        <audio src="${src}" controls style="width: 100%; height: 40px; display: block; position: relative; z-index: 1; border-radius: 30px;"></audio>
-                    </div>
-                `);
-            });
+// AUDIO ATTACHMENT
+} else if (targetUploadType.includes('audio')) {
+    const file = files[0];
+    const formData = new FormData();
+    formData.append('file', file);
+    fetch('/api/upload', { method: 'POST', body: formData })
+        .then(res => res.json())
+        .then(data => {
+            const src = data.url || URL.createObjectURL(file);
+            injectCanvasNode(`
+                <div class="clean-audio-wrapper" style="width: 100%; position: relative; background: transparent; padding: 4px; border-radius: 30px;">
+                    <div class="audio-drag-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; cursor: move;"></div>
+                    <audio src="${src}" controls style="width: 100%; height: 40px; display: block; position: relative; z-index: 1; border-radius: 30px;"></audio>
+                </div>
+            `);
+        });
 
     } else {
         const file = files[0];
@@ -758,6 +800,9 @@ function sharePost() {
 }
 
 // 5. PUBLISH CANVAS DIRECT TO FEED
+// PUBLISH CANVAS DIRECT TO FEED (EXACT COORDINATE & BOUNDARY CALCULATION)
+// PUBLISH CANVAS DIRECT TO FEED (PERFECT NORMALIZATION & BOUNDARY FIX)
+// PUBLISH CANVAS DIRECT TO FEED (EXACT COORDINATE & BOUNDS CALCULATION)
 function publishCanvasToFeed() {
     const directElements = universe.querySelectorAll('.canvas-direct-element');
     const doodleDataUrl = pad ? pad.toDataURL() : null;
@@ -768,12 +813,39 @@ function publishCanvasToFeed() {
         return;
     }
 
-    let maxBottomPx = 300;
+    // 1. Measure bounding bounds of all placed elements
+    let minLeft = Infinity, minTop = Infinity;
+    let maxRight = 0, maxBottom = 0;
 
+    directElements.forEach(element => {
+        const left = parseFloat(element.style.left) || 0;
+        const top = parseFloat(element.style.top) || 0;
+        const width = element.offsetWidth || 200;
+        const height = element.offsetHeight || 100;
+
+        if (left < minLeft) minLeft = left;
+        if (top < minTop) minTop = top;
+        if (left + width > maxRight) maxRight = left + width;
+        if (top + height > maxBottom) maxBottom = top + height;
+    });
+
+    if (minLeft === Infinity) minLeft = 0;
+    if (minTop === Infinity) minTop = 0;
+    if (maxRight === 0) maxRight = 680;
+    if (maxBottom === 0) maxBottom = 400;
+
+    // 2. Add uniform 20px margin around content
+    const padding = 20;
+    const contentWidth = Math.max(680, (maxRight - minLeft) + (padding * 2));
+    const contentHeight = Math.max(300, (maxBottom - minTop) + (padding * 2));
+
+    // 3. Clone and shift elements to remove top/left whitespace gaps
     let compositeElementsHTML = '';
+
     directElements.forEach(element => {
         const clone = element.cloneNode(true);
 
+        // Strip UI controls & toolbars
         clone.querySelectorAll('.docs-toolbar, .element-delete-btn, .element-resize-handle, select, input, button, .line-control-panel, .floating-editor-tools, .media-drag-header, .audio-drag-overlay').forEach(ui => ui.remove());
 
         clone.querySelectorAll('[contenteditable="true"]').forEach(editable => {
@@ -781,26 +853,23 @@ function publishCanvasToFeed() {
             editable.style.outline = 'none';
         });
 
-        const topPx = parseFloat(element.style.top) || 0;
-        const elemHeight = element.offsetHeight || 100;
+        const rawLeft = parseFloat(element.style.left) || 0;
+        const rawTop = parseFloat(element.style.top) || 0;
 
-        if (topPx + elemHeight > maxBottomPx) {
-            maxBottomPx = topPx + elemHeight;
-        }
+        const normalizedLeft = (rawLeft - minLeft) + padding;
+        const normalizedTop = (rawTop - minTop) + padding;
 
         clone.style.position = 'absolute';
-        clone.style.left = element.style.left;
-        clone.style.top = element.style.top;
+        clone.style.left = `${normalizedLeft}px`;
+        clone.style.top = `${normalizedTop}px`;
         clone.style.width = element.style.width;
         if (element.style.height) clone.style.height = element.style.height;
         clone.style.zIndex = element.style.zIndex || 10;
         if (element.style.transform) clone.style.transform = element.style.transform;
-        clone.style.pointerEvents = 'none';
+        clone.style.pointerEvents = 'auto';
 
         compositeElementsHTML += clone.outerHTML;
     });
-
-    const totalCanvasHeight = maxBottomPx + 40;
 
     const now = new Date();
     const formattedTimestamp = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -816,7 +885,8 @@ function publishCanvasToFeed() {
         bg_color: currentCanvasBgColor,
         doodle_layer: hasDoodles ? doodleDataUrl : null,
         html_content: compositeElementsHTML,
-        canvas_height: totalCanvasHeight
+        canvas_width: contentWidth,
+        canvas_height: contentHeight
     };
 
     fetch('/api/posts', {
@@ -831,8 +901,29 @@ function publishCanvasToFeed() {
             loadGlobalFeedFromBackend();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         } else {
-            alert("Error posting content.");
+            alert("Error publishing post.");
         }
     })
     .catch(err => console.error("Error publishing post:", err));
+}
+
+// RELIABLE FONT FAMILY APPLIER
+function applyFontFamily(selectEl, fontFamilyValue) {
+    if (!fontFamilyValue) return;
+    
+    const wrapper = selectEl.closest('.rich-text-wrapper');
+    const editor = wrapper ? wrapper.querySelector('.docs-editable-editor') : null;
+    
+    if (editor) {
+        editor.focus();
+        
+        // Check if user has selected specific text inside editor
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
+            document.execCommand('fontName', false, fontFamilyValue);
+        } else {
+            // Apply font family to entire editor block if no selection made
+            editor.style.fontFamily = fontFamilyValue;
+        }
+    }
 }
