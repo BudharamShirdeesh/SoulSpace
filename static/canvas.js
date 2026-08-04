@@ -722,15 +722,31 @@ function handleAssetCapture(event) {
         
         const formData = new FormData();
         formData.append('file', file);
+
+        // Upload recorded mobile file to Flask backend for permanent storage
         fetch('/api/upload', { method: 'POST', body: formData })
             .then(res => res.json())
             .then(data => {
-                const src = data.url || URL.createObjectURL(file);
+                if (!data.url) {
+                    alert("Video upload failed. Please try again.");
+                    return;
+                }
+                const serverVideoUrl = data.url;
+                const fileType = file.type || 'video/mp4';
+
                 injectCanvasNode(`
                     <div class="resizable-media-wrapper" style="width: 100%; height: 100%; position: relative;">
-                        <video src="${src}" controls playsinline webkit-playsinline style="width: 100%; height: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); object-fit: cover;"></video>
+                        <video controls playsinline webkit-playsinline preload="metadata" style="width: 100%; height: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); object-fit: cover;">
+                            <source src="${serverVideoUrl}" type="${fileType}">
+                            <source src="${serverVideoUrl}" type="video/mp4">
+                            Your browser does not support playing this video format.
+                        </video>
                     </div>
                 `);
+            })
+            .catch(err => {
+                console.error("Video upload error:", err);
+                alert("Failed to upload video to server.");
             });
 
     } else if (targetUploadType.includes('audio')) {
