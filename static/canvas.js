@@ -73,17 +73,21 @@ function renderPostToFeed(post) {
 function applyResponsiveFeedScaling() {
     const postContainers = document.querySelectorAll('.post-canvas-content');
     postContainers.forEach(container => {
-        const baseWidth = parseFloat(container.getAttribute('data-base-width')) || 680;
+        const baseWidth = parseFloat(container.getAttribute('data-base-width')) || 1000;
         const currentWidth = container.clientWidth;
 
         if (currentWidth > 0 && baseWidth > 0) {
             const scaleFactor = currentWidth / baseWidth;
             const viewport = container.querySelector('.post-2d-viewport');
+            const doodleLayer = container.querySelector('.post-doodle-layer');
 
             if (viewport) {
                 viewport.style.transform = `scale(${scaleFactor})`;
                 viewport.style.webkitTransform = `scale(${scaleFactor})`;
+                viewport.style.transformOrigin = '0 0';
+                viewport.style.webkitTransformOrigin = '0 0';
             }
+
         }
     });
 }
@@ -348,11 +352,17 @@ function makeElementInteractive(element) {
 
 function moveActiveElement(e) {
     if (!activeElement) return;
+
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-    activeElement.style.left = `${clientX - startX}px`;
-    activeElement.style.top = `${clientY - startY}px`;
+    const parent = activeElement.parentElement;
+
+    const x = clientX - startX;
+    const y = clientY - startY;
+
+    activeElement.style.left = ((x / parent.clientWidth) * 100) + "%";
+    activeElement.style.top = ((y / parent.clientHeight) * 100) + "%";
 }
 
 function stopActiveElement() {
@@ -405,8 +415,11 @@ function injectCanvasNode(htmlContent) {
             const newWidth = Math.max(80, initialWidth + (currentX - initialX));
             const newHeight = Math.max(30, initialHeight + (currentY - initialY));
             
-            card.style.width = `${newWidth}px`;
-            card.style.height = `${newHeight}px`;
+            const parent = card.parentElement;
+            card.style.width =
+                ((newWidth / parent.clientWidth) * 100) + "%";
+            card.style.height =
+                ((newHeight / parent.clientHeight) * 100) + "%";
 
             const imageWrapper = card.querySelector('.resizable-image-wrapper');
             if (imageWrapper) {
@@ -800,9 +813,7 @@ function sharePost() {
 }
 
 // 5. PUBLISH CANVAS DIRECT TO FEED
-// PUBLISH CANVAS DIRECT TO FEED (EXACT COORDINATE & BOUNDARY CALCULATION)
-// PUBLISH CANVAS DIRECT TO FEED (PERFECT NORMALIZATION & BOUNDARY FIX)
-// PUBLISH CANVAS DIRECT TO FEED (EXACT COORDINATE & BOUNDS CALCULATION)
+// PUBLISH CANVAS WITH FIXED VIRTUAL COORDINATE SPACE (CROSS-DEVICE FIX)
 function publishCanvasToFeed() {
     const directElements = universe.querySelectorAll('.canvas-direct-element');
     const doodleDataUrl = pad ? pad.toDataURL() : null;
@@ -813,39 +824,20 @@ function publishCanvasToFeed() {
         return;
     }
 
-    // 1. Measure bounding bounds of all placed elements
-    let minLeft = Infinity, minTop = Infinity;
-    let maxRight = 0, maxBottom = 0;
+    // Measure active screen width in studio editor
+    const currentStudioWidth = universe.clientWidth || 360;
+    
+    // Virtual Reference Standard (1000px Standard Base)
+    const VIRTUAL_BASE_WIDTH = 1000;
+    const deviceRatio = VIRTUAL_BASE_WIDTH / currentStudioWidth;
 
-    directElements.forEach(element => {
-        const left = parseFloat(element.style.left) || 0;
-        const top = parseFloat(element.style.top) || 0;
-        const width = element.offsetWidth || 200;
-        const height = element.offsetHeight || 100;
-
-        if (left < minLeft) minLeft = left;
-        if (top < minTop) minTop = top;
-        if (left + width > maxRight) maxRight = left + width;
-        if (top + height > maxBottom) maxBottom = top + height;
-    });
-
-    if (minLeft === Infinity) minLeft = 0;
-    if (minTop === Infinity) minTop = 0;
-    if (maxRight === 0) maxRight = 680;
-    if (maxBottom === 0) maxBottom = 400;
-
-    // 2. Add uniform 20px margin around content
-    const padding = 20;
-    const contentWidth = Math.max(680, (maxRight - minLeft) + (padding * 2));
-    const contentHeight = Math.max(300, (maxBottom - minTop) + (padding * 2));
-
-    // 3. Clone and shift elements to remove top/left whitespace gaps
+    let maxBottomPx = 400;
     let compositeElementsHTML = '';
 
     directElements.forEach(element => {
         const clone = element.cloneNode(true);
 
-        // Strip UI controls & toolbars
+        // Strip editor toolbars & drag overlays
         clone.querySelectorAll('.docs-toolbar, .element-delete-btn, .element-resize-handle, select, input, button, .line-control-panel, .floating-editor-tools, .media-drag-header, .audio-drag-overlay').forEach(ui => ui.remove());
 
         clone.querySelectorAll('[contenteditable="true"]').forEach(editable => {
@@ -855,19 +847,51 @@ function publishCanvasToFeed() {
 
         const rawLeft = parseFloat(element.style.left) || 0;
         const rawTop = parseFloat(element.style.top) || 0;
+        let rawWidth = parseFloat(element.style.width) || element.offsetWidth;
+        let rawHeight = parseFloat(element.style.height) || element.offsetHeight;
 
-        const normalizedLeft = (rawLeft - minLeft) + padding;
-        const normalizedTop = (rawTop - minTop) + padding;
+        if (element.style.left.includes('%')) {
+            rawLeft = (rawLeft / 100) * currentStudioWidth;
+        
+        }
+        if (element.style.top.includes('%')) {
+            rawTop = (rawTop / 100) * universe.clientHeight;
+        }
+        if (element.style.width.includes('%')) {
+            rawWidth = (rawWidth / 100) * currentStudioWidth;
+        }
+        if (element.style.height.includes('%')) {
+            rawHeight = (rawHeight / 100) * universe.clientHeight;
+        }
+        
+        // Scale coordinates & dimensions into 1000px Virtual Space
+        const virtualLeft = rawLeft * deviceRatio;
+        const virtualTop = rawTop * deviceRatio;
+        const virtualWidth = rawWidth * deviceRatio;
+        const virtualHeight = rawHeight * deviceRatio;
+
+        if (virtualTop + virtualHeight > maxBottomPx) {
+            maxBottomPx = virtualTop + virtualHeight + 40;
+        }
 
         clone.style.position = 'absolute';
-        clone.style.left = `${normalizedLeft}px`;
-        clone.style.top = `${normalizedTop}px`;
-        clone.style.width = element.style.width;
-        if (element.style.height) clone.style.height = element.style.height;
+        clone.style.left = `${virtualLeft}px`;
+        clone.style.top = `${virtualTop}px`;
+        clone.style.width = `${virtualWidth}px`;
+        clone.style.height = `${virtualHeight}px`;
         clone.style.zIndex = element.style.zIndex || 10;
         if (element.style.transform) clone.style.transform = element.style.transform;
-        clone.style.pointerEvents = 'auto';
+        
+        // Ensure playback inputs work on feed
+        clone.querySelectorAll('video, audio').forEach(media => {
+            media.setAttribute('playsinline', 'true');
+            media.setAttribute('webkit-playsinline', 'true');
+            media.setAttribute('controls', 'true');
+            media.style.pointerEvents = 'auto';
+            media.style.touchAction = 'manipulation';
+        });
 
+        clone.style.pointerEvents = 'auto';
         compositeElementsHTML += clone.outerHTML;
     });
 
@@ -885,8 +909,8 @@ function publishCanvasToFeed() {
         bg_color: currentCanvasBgColor,
         doodle_layer: hasDoodles ? doodleDataUrl : null,
         html_content: compositeElementsHTML,
-        canvas_width: contentWidth,
-        canvas_height: contentHeight
+        canvas_width: VIRTUAL_BASE_WIDTH, // Always 1000px Standard Base
+        canvas_height: Math.max(500, maxBottomPx)
     };
 
     fetch('/api/posts', {
@@ -906,7 +930,6 @@ function publishCanvasToFeed() {
     })
     .catch(err => console.error("Error publishing post:", err));
 }
-
 // RELIABLE FONT FAMILY APPLIER
 function applyFontFamily(selectEl, fontFamilyValue) {
     if (!fontFamilyValue) return;
