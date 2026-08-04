@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import time
+import mimetypes
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from werkzeug.utils import secure_filename
 
@@ -9,7 +10,8 @@ app = Flask(__name__, static_folder="static", template_folder="templates")
 # Configuration
 UPLOAD_FOLDER = 'uploads'
 DATABASE = 'database.db'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'mp4', 'mp3', 'pdf', 'txt'}
+# Added 'mov', 'webm', 'ogg', and 'wav' for full cross-platform compatibility
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'mp4', 'mov', 'webm', 'ogg', 'mp3', 'wav', 'pdf', 'txt'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = 25 * 1024 * 1024  # 25MB max request payload
@@ -70,10 +72,23 @@ def auth_page():
 def feed_page():
     return render_template('landing.html')
 
-# Serve uploaded media/images
+# Serve uploaded media/images with explicit MIME-Types for Mobile/Desktop compatibility
 @app.route('/uploads/<filename>')
 def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+    
+    # Custom MIME type mapping for cross-platform video & audio streaming
+    mime_mapping = {
+        'mov': 'video/quicktime',
+        'mp4': 'video/mp4',
+        'webm': 'video/webm',
+        'ogg': 'video/ogg',
+        'mp3': 'audio/mpeg',
+        'wav': 'audio/wav'
+    }
+    
+    mimetype = mime_mapping.get(ext) or mimetypes.guess_type(filename)[0]
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename, mimetype=mimetype)
 
 # ============================================================
 # API ENDPOINTS FOR GLOBAL FEED SHARING
@@ -101,10 +116,10 @@ def create_post():
     doodle_layer = data.get('doodle_layer', None)
     html_content = data.get('html_content', '')
     try:
-        canvas_width = float(data.get('canvas_width', 680))
-        canvas_height = float(data.get('canvas_height', 400))
+        canvas_width = float(data.get('canvas_width', 1000))
+        canvas_height = float(data.get('canvas_height', 500))
     except (TypeError, ValueError):
-        canvas_width, canvas_height = 680, 400
+        canvas_width, canvas_height = 1000, 500
 
     with get_db() as conn:
         cursor = conn.cursor()
