@@ -31,8 +31,8 @@ function renderPostToFeed(post) {
     const timeline = document.getElementById('timeline-feed');
     if (!timeline) return;
 
-    const baseWidth = post.canvas_width || 680;
-    const baseHeight = post.canvas_height || 400;
+    const baseWidth = post.canvas_width || 1000;
+    const baseHeight = post.canvas_height || 500;
 
     const article = document.createElement('article');
     article.className = 'feed-post dynamic-new-post-animation';
@@ -79,7 +79,6 @@ function applyResponsiveFeedScaling() {
         if (currentWidth > 0 && baseWidth > 0) {
             const scaleFactor = currentWidth / baseWidth;
             const viewport = container.querySelector('.post-2d-viewport');
-            const doodleLayer = container.querySelector('.post-doodle-layer');
 
             if (viewport) {
                 viewport.style.transform = `scale(${scaleFactor})`;
@@ -87,7 +86,6 @@ function applyResponsiveFeedScaling() {
                 viewport.style.transformOrigin = '0 0';
                 viewport.style.webkitTransformOrigin = '0 0';
             }
-
         }
     });
 }
@@ -191,7 +189,7 @@ function logoutUser() {
 }
 
 // ============================================================
-// CANVAS DRAWING & SKETCH ENGINE (WITH iOS TOUCH SUPPORT)
+// CANVAS DRAWING & SKETCH ENGINE (WITH TOUCH SUPPORT)
 // ============================================================
 const universe = document.getElementById('canvas-universe');
 const assetGate = document.getElementById('secure-asset-gate');
@@ -223,9 +221,8 @@ function toggleCanvasOverlay(shouldShow) {
         overlay.classList.remove('hidden');
         totalUploadedImageSizeMB = 0;
         
-        // Reset studio paper mood to default white preview
         currentCanvasBgColor = '#ffffff';
-        if (universe) universe.style.backgroundColor = '#ffffff';
+        if (universe) universe.style.setProperty('background-color', '#ffffff', 'important');
         const colorPicker = document.getElementById('canvas-bg-picker');
         if (colorPicker) colorPicker.value = '#ffffff';
 
@@ -241,15 +238,11 @@ function toggleCanvasOverlay(shouldShow) {
     }
 }
 
-// LIVE PAPER MOOD PREVIEW HANDLER
-// LIVE PAPER MOOD PREVIEW ENGINE
 function changeCanvasMoodColor(colorHex) {
     currentCanvasBgColor = colorHex;
-    
-    const universe = document.getElementById('canvas-universe');
-    if (universe) {
-        // Force live background color preview on the studio sheet
-        universe.style.setProperty('background-color', colorHex, 'important');
+    const universeEl = document.getElementById('canvas-universe');
+    if (universeEl) {
+        universeEl.style.setProperty('background-color', colorHex, 'important');
     }
 }
 
@@ -268,7 +261,6 @@ function clearDoodles() {
     if (ctx && pad) ctx.clearRect(0, 0, pad.width, pad.height);
 }
 
-// HELPER TO EXTRACT TOUCH OR MOUSE COORDINATES (iOS FIX)
 function getPointerPos(e) {
     const rect = pad.getBoundingClientRect();
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -289,7 +281,7 @@ function startStroke(e) {
 
 function drawStroke(e) {
     if (!isDrawing) return;
-    if (e.cancelable) e.preventDefault(); // Prevent iOS page scrolling while drawing
+    if (e.cancelable) e.preventDefault();
     const pos = getPointerPos(e);
 
     ctx.lineWidth = document.getElementById('pen-size').value;
@@ -313,7 +305,6 @@ function endStroke() {
     if (ctx) ctx.beginPath();
 }
 
-// ATTACH BOTH MOUSE & iOS TOUCH LISTENERS
 if (pad) {
     pad.addEventListener('mousedown', startStroke);
     pad.addEventListener('mousemove', drawStroke);
@@ -325,7 +316,6 @@ if (pad) {
     pad.addEventListener('touchend', endStroke);
 }
 
-// DRAGGABLE & RESIZABLE ELEMENTS ENGINE (WITH iOS TOUCH DRAGGING)
 function makeElementInteractive(element) {
     const startDrag = (e) => {
         if (e.target.closest('.element-delete-btn') || e.target.closest('.element-resize-handle') || ['INPUT', 'SELECT', 'OPTION'].includes(e.target.tagName)) return;
@@ -356,13 +346,11 @@ function moveActiveElement(e) {
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
     const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
-    const parent = activeElement.parentElement;
-
     const x = clientX - startX;
     const y = clientY - startY;
 
-    activeElement.style.left = ((x / parent.clientWidth) * 100) + "%";
-    activeElement.style.top = ((y / parent.clientHeight) * 100) + "%";
+    activeElement.style.left = `${x}px`;
+    activeElement.style.top = `${y}px`;
 }
 
 function stopActiveElement() {
@@ -415,11 +403,8 @@ function injectCanvasNode(htmlContent) {
             const newWidth = Math.max(80, initialWidth + (currentX - initialX));
             const newHeight = Math.max(30, initialHeight + (currentY - initialY));
             
-            const parent = card.parentElement;
-            card.style.width =
-                ((newWidth / parent.clientWidth) * 100) + "%";
-            card.style.height =
-                ((newHeight / parent.clientHeight) * 100) + "%";
+            card.style.width = `${newWidth}px`;
+            card.style.height = `${newHeight}px`;
 
             const imageWrapper = card.querySelector('.resizable-image-wrapper');
             if (imageWrapper) {
@@ -461,11 +446,10 @@ function injectCanvasNode(htmlContent) {
     resizeHandle.addEventListener('touchstart', startResize, { passive: true });
 
     card.appendChild(resizeHandle);
-    universe.appendChild(card);
+    if (universe) universe.appendChild(card);
     makeElementInteractive(card);
 }
 
-// FORMATTING & SELECTION PRESERVATION HELPERS
 function formatDoc(btnElement, cmd, value = null) {
     if (btnElement && btnElement.closest) {
         const wrapper = btnElement.closest('.rich-text-wrapper, .vector-shape-element');
@@ -501,8 +485,6 @@ function insertEmoji(selectEl, emojiChar) {
     selectEl.value = "";
 }
 
-// 1. RICH TEXT BLOCK ENGINE
-// 1. RICH TEXT BLOCK ENGINE (ROBUST GOOGLE FONTS)
 function createRichTextNode() {
     const html = `
         <div class="rich-text-wrapper" style="display: flex; flex-direction: column; gap: 4px; padding: 2px; background: transparent; border: none; box-shadow: none; width: 100%; box-sizing: border-box;">
@@ -515,7 +497,6 @@ function createRichTextNode() {
                     <option value="h3">Heading 1</option>
                 </select>
 
-                <!-- CLEAN FONT SELECTION -->
                 <select onchange="applyFontFamily(this, this.value)" style="font-size:10px; padding:2px; max-width:110px;" title="Font Family">
                     <optgroup label="Handwriting / Cursive">
                         <option value="Caveat, cursive" selected>Caveat</option>
@@ -591,7 +572,7 @@ function createRichTextNode() {
     `;
     injectCanvasNode(html);
 }
-// 2. VECTOR SHAPES ENGINE
+
 function createShapeNode() {
     const shapeId = 'shape-' + Date.now();
     const html = `
@@ -632,7 +613,6 @@ function applyShapeType(elementId, shapeType) {
     }
 }
 
-// 3. LINES ENGINE
 function createLineNode() {
     const lineId = 'line-' + Date.now();
     const html = `
@@ -675,7 +655,6 @@ function updateLinePath(lineId, styleType) {
     else if (styleType === 'arrow') path.setAttribute('d', 'M 0 50 L 92 50 M 80 35 L 98 50 L 80 65');
 }
 
-// 4. MEDIA ATTACHMENTS WITH CUMULATIVE 25MB LIMIT
 function triggerAssetUpload(mime) {
     if (!assetGate) return;
     assetGate.accept = mime;
@@ -737,40 +716,40 @@ function handleAssetCapture(event) {
             totalUploadedImageSizeMB += newBatchSizeMB;
         });
 
-    // VIDEO ATTACHMENT
-} else if (targetUploadType.includes('video')) {
-    const file = files[0];
-    if (file.size / (1024 * 1024) > 10) { alert("Video capped at 10MB (30s max limit)."); return; }
-    
-    const formData = new FormData();
-    formData.append('file', file);
-    fetch('/api/upload', { method: 'POST', body: formData })
-        .then(res => res.json())
-        .then(data => {
-            const src = data.url || URL.createObjectURL(file);
-            injectCanvasNode(`
-                <div class="resizable-media-wrapper" style="width: 100%; height: 100%; position: relative;">
-                    <video src="${src}" controls playsinline style="width: 100%; height: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); object-fit: cover;"></video>
-                </div>
-            `);
-        });
+    } else if (targetUploadType.includes('video')) {
+        const file = files[0];
+        if (file.size / (1024 * 1024) > 10) { alert("Video capped at 10MB (30s max limit)."); return; }
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        fetch('/api/upload', { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(data => {
+                const src = data.url || URL.createObjectURL(file);
+                injectCanvasNode(`
+                    <div class="resizable-media-wrapper" style="width: 100%; height: 100%; position: relative;">
+                        <video src="${src}" controls playsinline webkit-playsinline style="width: 100%; height: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); object-fit: cover;"></video>
+                    </div>
+                `);
+            });
 
-// AUDIO ATTACHMENT
-} else if (targetUploadType.includes('audio')) {
-    const file = files[0];
-    const formData = new FormData();
-    formData.append('file', file);
-    fetch('/api/upload', { method: 'POST', body: formData })
-        .then(res => res.json())
-        .then(data => {
-            const src = data.url || URL.createObjectURL(file);
-            injectCanvasNode(`
-                <div class="clean-audio-wrapper" style="width: 100%; position: relative; background: transparent; padding: 4px; border-radius: 30px;">
-                    <div class="audio-drag-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; cursor: move;"></div>
-                    <audio src="${src}" controls style="width: 100%; height: 40px; display: block; position: relative; z-index: 1; border-radius: 30px;"></audio>
-                </div>
-            `);
-        });
+    } else if (targetUploadType.includes('audio')) {
+        const file = files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+        fetch('/api/upload', { method: 'POST', body: formData })
+            .then(res => res.json())
+            .then(data => {
+                const src = data.url || URL.createObjectURL(file);
+                injectCanvasNode(`
+                    <div class="clean-audio-wrapper" style="width: 100%; position: relative; background: #ffffff; padding: 6px; border-radius: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                        <!-- Drag overlay sitting on top -->
+                        <div class="audio-drag-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; cursor: move;"></div>
+                        <!-- Native player untouched underneath -->
+                        <audio src="${src}" controls playsinline webkit-playsinline style="width: 100%; height: 40px; display: block; position: relative; z-index: 1; border-radius: 30px; touch-action: auto;"></audio>
+                    </div>
+                `);
+            });
 
     } else {
         const file = files[0];
@@ -812,22 +791,29 @@ function sharePost() {
     alert('Post link copied to clipboard!');
 }
 
-// 5. PUBLISH CANVAS DIRECT TO FEED
-// PUBLISH CANVAS WITH FIXED VIRTUAL COORDINATE SPACE (CROSS-DEVICE FIX)
+// 5. PUBLISH CANVAS DIRECT TO FEED (SAFE EXECUTION ENGINE)
 function publishCanvasToFeed() {
-    const directElements = universe.querySelectorAll('.canvas-direct-element');
-    const doodleDataUrl = pad ? pad.toDataURL() : null;
-    const hasDoodles = ctx ? ctx.getImageData(0, 0, pad.width, pad.height).data.some(channel => channel !== 0) : false;
+    const universeElement = document.getElementById('canvas-universe');
+    if (!universeElement) {
+        alert("Error: Workspace canvas not found!");
+        return;
+    }
+
+    const directElements = universeElement.querySelectorAll('.canvas-direct-element');
+    const sketchPad = document.getElementById('sketch-pad');
+    const doodleContext = sketchPad ? sketchPad.getContext('2d') : null;
+    
+    const doodleDataUrl = sketchPad ? sketchPad.toDataURL() : null;
+    const hasDoodles = doodleContext ? doodleContext.getImageData(0, 0, sketchPad.width, sketchPad.height).data.some(channel => channel !== 0) : false;
 
     if (directElements.length === 0 && !hasDoodles) {
         alert("Please add text, shapes, doodles, or files before sharing!");
         return;
     }
 
-    // Measure active screen width in studio editor
-    const currentStudioWidth = universe.clientWidth || 360;
+    const currentStudioWidth = universeElement.clientWidth || 360;
+    const currentStudioHeight = universeElement.clientHeight || 500;
     
-    // Virtual Reference Standard (1000px Standard Base)
     const VIRTUAL_BASE_WIDTH = 1000;
     const deviceRatio = VIRTUAL_BASE_WIDTH / currentStudioWidth;
 
@@ -837,7 +823,7 @@ function publishCanvasToFeed() {
     directElements.forEach(element => {
         const clone = element.cloneNode(true);
 
-        // Strip editor toolbars & drag overlays
+        // Remove ONLY the invisible drag overlay, leave the <audio> tag intact!
         clone.querySelectorAll('.docs-toolbar, .element-delete-btn, .element-resize-handle, select, input, button, .line-control-panel, .floating-editor-tools, .media-drag-header, .audio-drag-overlay').forEach(ui => ui.remove());
 
         clone.querySelectorAll('[contenteditable="true"]').forEach(editable => {
@@ -845,26 +831,43 @@ function publishCanvasToFeed() {
             editable.style.outline = 'none';
         });
 
-        const rawLeft = parseFloat(element.style.left) || 0;
-        const rawTop = parseFloat(element.style.top) || 0;
-        let rawWidth = parseFloat(element.style.width) || element.offsetWidth;
-        let rawHeight = parseFloat(element.style.height) || element.offsetHeight;
+        // Ensure audio & video elements are explicitly styled for feed playback
+        clone.querySelectorAll('video, audio').forEach(media => {
+            media.setAttribute('playsinline', 'true');
+            media.setAttribute('webkit-playsinline', 'true');
+            media.setAttribute('controls', 'true');
+            media.style.pointerEvents = 'auto';
+            media.style.touchAction = 'manipulation';
+            media.style.display = 'block';
+        });
 
-        if (element.style.left.includes('%')) {
-            rawLeft = (rawLeft / 100) * currentStudioWidth;
-        
+        // Ensure wrapper allows clicking audio controls
+        const audioWrapper = clone.querySelector('.clean-audio-wrapper');
+        if (audioWrapper) {
+            audioWrapper.style.pointerEvents = 'auto';
         }
-        if (element.style.top.includes('%')) {
-            rawTop = (rawTop / 100) * universe.clientHeight;
-        }
-        if (element.style.width.includes('%')) {
-            rawWidth = (rawWidth / 100) * currentStudioWidth;
-        }
-        if (element.style.height.includes('%')) {
-            rawHeight = (rawHeight / 100) * universe.clientHeight;
-        }
-        
-        // Scale coordinates & dimensions into 1000px Virtual Space
+        // Safe style string parsing logic
+        const leftStyle = element.style.left || '';
+        const topStyle = element.style.top || '';
+        const widthStyle = element.style.width || '';
+        const heightStyle = element.style.height || '';
+
+        let rawLeft = parseFloat(leftStyle);
+        if (isNaN(rawLeft)) rawLeft = element.offsetLeft || 0;
+        if (leftStyle.includes('%')) rawLeft = (rawLeft / 100) * currentStudioWidth;
+
+        let rawTop = parseFloat(topStyle);
+        if (isNaN(rawTop)) rawTop = element.offsetTop || 0;
+        if (topStyle.includes('%')) rawTop = (rawTop / 100) * currentStudioHeight;
+
+        let rawWidth = parseFloat(widthStyle);
+        if (isNaN(rawWidth) || rawWidth <= 0) rawWidth = element.offsetWidth || 200;
+        if (widthStyle.includes('%')) rawWidth = (rawWidth / 100) * currentStudioWidth;
+
+        let rawHeight = parseFloat(heightStyle);
+        if (isNaN(rawHeight) || rawHeight <= 0) rawHeight = element.offsetHeight || 100;
+        if (heightStyle.includes('%')) rawHeight = (rawHeight / 100) * currentStudioHeight;
+
         const virtualLeft = rawLeft * deviceRatio;
         const virtualTop = rawTop * deviceRatio;
         const virtualWidth = rawWidth * deviceRatio;
@@ -882,7 +885,7 @@ function publishCanvasToFeed() {
         clone.style.zIndex = element.style.zIndex || 10;
         if (element.style.transform) clone.style.transform = element.style.transform;
         
-        // Ensure playback inputs work on feed
+        // Mobile inline media controls enablement
         clone.querySelectorAll('video, audio').forEach(media => {
             media.setAttribute('playsinline', 'true');
             media.setAttribute('webkit-playsinline', 'true');
@@ -906,10 +909,10 @@ function publishCanvasToFeed() {
         author: activeUser,
         avatar_initials: name.substring(0, 2).toUpperCase(),
         formatted_date: formattedTimestamp,
-        bg_color: currentCanvasBgColor,
+        bg_color: currentCanvasBgColor || '#ffffff',
         doodle_layer: hasDoodles ? doodleDataUrl : null,
         html_content: compositeElementsHTML,
-        canvas_width: VIRTUAL_BASE_WIDTH, // Always 1000px Standard Base
+        canvas_width: VIRTUAL_BASE_WIDTH,
         canvas_height: Math.max(500, maxBottomPx)
     };
 
@@ -925,12 +928,15 @@ function publishCanvasToFeed() {
             loadGlobalFeedFromBackend();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         } else {
-            alert("Error publishing post.");
+            alert("Error publishing post: " + (data.message || "Failed to save post."));
         }
     })
-    .catch(err => console.error("Error publishing post:", err));
+    .catch(err => {
+        console.error("Error publishing post:", err);
+        alert("Failed to reach server. Please check your network connection.");
+    });
 }
-// RELIABLE FONT FAMILY APPLIER
+
 function applyFontFamily(selectEl, fontFamilyValue) {
     if (!fontFamilyValue) return;
     
@@ -939,13 +945,10 @@ function applyFontFamily(selectEl, fontFamilyValue) {
     
     if (editor) {
         editor.focus();
-        
-        // Check if user has selected specific text inside editor
         const selection = window.getSelection();
         if (selection && selection.rangeCount > 0 && !selection.isCollapsed) {
             document.execCommand('fontName', false, fontFamilyValue);
         } else {
-            // Apply font family to entire editor block if no selection made
             editor.style.fontFamily = fontFamilyValue;
         }
     }
