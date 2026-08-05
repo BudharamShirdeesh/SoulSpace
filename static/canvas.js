@@ -53,8 +53,14 @@ function renderPostToFeed(post) {
 
         <div class="post-canvas-content" data-base-width="${baseWidth}" data-base-height="${baseHeight}" style="background-color: ${post.bg_color || '#ffffff'}; position: relative; width: 100%; aspect-ratio: ${baseWidth} / ${baseHeight}; overflow: hidden; border-radius: 12px; border: 1px solid #e5e0d8;">
             ${post.doodle_layer ? `<img src="${post.doodle_layer}" class="post-doodle-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:contain; pointer-events:none; z-index:1;">` : ''}
+            
             <div class="post-2d-viewport" style="position: absolute; top:0; left:0; width: ${baseWidth}px; height: ${baseHeight}px; z-index: 2; transform-origin: 0 0;">
                 ${post.html_content}
+            </div>
+
+            <!-- WATERMARK LAYER (BOTTOM RIGHT) -->
+            <div class="post-watermark" style="position: absolute; bottom: 10px; right: 14px; z-index: 100; pointer-events: none; font-size: 11px; font-weight: 600; color: rgba(0, 0, 0, 0.45); background: rgba(255, 255, 255, 0.65); padding: 3px 8px; border-radius: 6px; backdrop-filter: blur(4px); border: 1px solid rgba(0, 0, 0, 0.08); font-family: -apple-system, sans-serif;">
+                ${post.author || '@username'} • ${post.formatted_date || ''}
             </div>
         </div>
 
