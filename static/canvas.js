@@ -3,6 +3,10 @@
 // ============================================================
 let totalUploadedImageSizeMB = 0;
 
+// UNDO & REDO STATE MANAGEMENT
+let undoStack = [];
+let redoStack = [];
+
 document.addEventListener("DOMContentLoaded", () => {
     loadGlobalFeedFromBackend();
 });
@@ -189,7 +193,7 @@ function logoutUser() {
 }
 
 // ============================================================
-// CANVAS DRAWING & SKETCH ENGINE (WITH TOUCH SUPPORT)
+// CANVAS DRAWING & SKETCH ENGINE
 // ============================================================
 const universe = document.getElementById('canvas-universe');
 const assetGate = document.getElementById('secure-asset-gate');
@@ -199,7 +203,7 @@ const pad = document.getElementById('sketch-pad');
 const ctx = pad ? pad.getContext('2d') : null;
 
 let isDrawing = false;
-let currentTool = 'pen';
+let currentTool = 'select'; // DEFAULT TO SELECT / MOVE TOOL (PEN DISABLED BY DEFAULT)
 let targetUploadType = '';
 let activeElement = null;
 let startX = 0, startY = 0;
@@ -216,10 +220,92 @@ function initPad() {
 
 window.addEventListener('resize', () => { if (overlay && !overlay.classList.contains('hidden')) initPad(); });
 
+function saveCanvasState() {
+    if (!pad) return;
+    const doodleData = ctx.getImageData(0, 0, pad.width, pad.height);
+    
+    // Save DOM elements snapshot
+    const elementsSnapshot = [];
+    if (universe) {
+        universe.querySelectorAll('.canvas-direct-element').forEach(el => {
+            elementsSnapshot.push(el.outerHTML);
+        });
+    }
+
+    undoStack.push({
+        doodle: doodleData,
+        elements: elementsSnapshot
+    });
+
+    // Limit undo stack to 25 states
+    if (undoStack.length > 25) undoStack.shift();
+    
+    // Clear redo stack on new action
+    redoStack = [];
+}
+
+function undoCanvasState() {
+    if (undoStack.length === 0) return;
+
+    // Save current state to redo stack
+    const currentDoodle = ctx.getImageData(0, 0, pad.width, pad.height);
+    const currentElements = [];
+    if (universe) {
+        universe.querySelectorAll('.canvas-direct-element').forEach(el => currentElements.push(el.outerHTML));
+    }
+    redoStack.push({ doodle: currentDoodle, elements: currentElements });
+
+    // Restore previous state
+    const previousState = undoStack.pop();
+    ctx.putImageData(previousState.doodle, 0, 0);
+
+    // Re-render HTML elements
+    if (universe) {
+        universe.querySelectorAll('.canvas-direct-element').forEach(el => el.remove());
+        previousState.elements.forEach(html => {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            const restoredNode = tempDiv.firstElementChild;
+            universe.appendChild(restoredNode);
+            makeElementInteractive(restoredNode);
+        });
+    }
+}
+
+function redoCanvasState() {
+    if (redoStack.length === 0) return;
+
+    // Save current state to undo stack
+    const currentDoodle = ctx.getImageData(0, 0, pad.width, pad.height);
+    const currentElements = [];
+    if (universe) {
+        universe.querySelectorAll('.canvas-direct-element').forEach(el => currentElements.push(el.outerHTML));
+    }
+    undoStack.push({ doodle: currentDoodle, elements: currentElements });
+
+    // Restore redo state
+    const nextState = redoStack.pop();
+    ctx.putImageData(nextState.doodle, 0, 0);
+
+    // Re-render HTML elements
+    if (universe) {
+        universe.querySelectorAll('.canvas-direct-element').forEach(el => el.remove());
+        nextState.elements.forEach(html => {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            const restoredNode = tempDiv.firstElementChild;
+            universe.appendChild(restoredNode);
+            makeElementInteractive(restoredNode);
+        });
+    }
+}
+
 function toggleCanvasOverlay(shouldShow) {
     if (shouldShow) {
         overlay.classList.remove('hidden');
         totalUploadedImageSizeMB = 0;
+        undoStack = [];
+        redoStack = [];
         
         currentCanvasBgColor = '#ffffff';
         if (universe) universe.style.setProperty('background-color', '#ffffff', 'important');
@@ -229,7 +315,7 @@ function toggleCanvasOverlay(shouldShow) {
         setTimeout(() => {
             initPad();
             clearDoodles();
-            setDrawingTool('pen');
+            setDrawingTool('select'); // Default to Select mode on canvas open
         }, 50);
         
         if (universe) universe.querySelectorAll('.canvas-direct-element').forEach(el => el.remove());
@@ -247,17 +333,29 @@ function changeCanvasMoodColor(colorHex) {
 }
 
 function setDrawingTool(tool) {
-    currentTool = tool;
     const penBtn = document.getElementById('pen-toggle-btn');
     const eraserBtn = document.getElementById('eraser-toggle-btn');
 
+    // Toggle off if clicking the currently active tool
+    if (currentTool === tool) {
+        currentTool = 'none';
+        if (penBtn) penBtn.classList.remove('active');
+        if (eraserBtn) eraserBtn.classList.remove('active');
+        if (pad) pad.style.pointerEvents = 'none'; // Disables drawing, unlocks clicking elements
+        return;
+    }
+
+    // Activate selected tool
+    currentTool = tool;
     if (penBtn) penBtn.classList.toggle('active', tool === 'pen');
     if (eraserBtn) eraserBtn.classList.toggle('active', tool === 'eraser');
 
-    if (pad) pad.style.pointerEvents = "auto";
+    // Enable sketch pad for drawing
+    if (pad) pad.style.pointerEvents = 'auto';
 }
 
 function clearDoodles() {
+    saveCanvasState();
     if (ctx && pad) ctx.clearRect(0, 0, pad.width, pad.height);
 }
 
@@ -272,7 +370,8 @@ function getPointerPos(e) {
 }
 
 function startStroke(e) {
-    if (e.target !== pad) return;
+    if (e.target !== pad || currentTool === 'none') return;
+    saveCanvasState();
     isDrawing = true;
     const pos = getPointerPos(e);
     ctx.beginPath();
@@ -280,7 +379,7 @@ function startStroke(e) {
 }
 
 function drawStroke(e) {
-    if (!isDrawing) return;
+    if (!isDrawing || currentTool === 'none') return;
     if (e.cancelable) e.preventDefault();
     const pos = getPointerPos(e);
 
@@ -292,13 +391,34 @@ function drawStroke(e) {
         ctx.globalCompositeOperation = 'destination-out';
         ctx.lineTo(pos.x, pos.y);
         ctx.stroke();
-    } else {
+    } else if (currentTool === 'pen') {
         ctx.globalCompositeOperation = 'source-over';
         ctx.strokeStyle = document.getElementById('pen-color').value;
         ctx.lineTo(pos.x, pos.y);
         ctx.stroke();
     }
 }
+
+// VERTICAL TOOLBOX DROPDOWN CONTROLLERS
+// VERTICAL TOOLBOX DROPDOWN CONTROLLERS
+function toggleToolboxMenu(event) {
+    if (event) event.stopPropagation();
+    const menu = document.getElementById('vertical-toolbox-menu');
+    if (menu) menu.classList.toggle('hidden');
+}
+
+function closeToolboxMenu() {
+    const menu = document.getElementById('vertical-toolbox-menu');
+    if (menu) menu.classList.add('hidden');
+}
+
+// Close menu when clicking on the workspace
+document.addEventListener('click', (event) => {
+    const container = document.querySelector('.studio-toolbox-dropdown-container');
+    if (container && !container.contains(event.target)) {
+        closeToolboxMenu();
+    }
+});
 
 function endStroke() {
     isDrawing = false;
@@ -319,6 +439,8 @@ if (pad) {
 function makeElementInteractive(element) {
     const startDrag = (e) => {
         if (e.target.closest('.element-delete-btn') || e.target.closest('.element-resize-handle') || ['INPUT', 'SELECT', 'OPTION'].includes(e.target.tagName)) return;
+
+        saveCanvasState(); // Save state before moving an element
 
         const dragOverlay = element.querySelector('.audio-drag-overlay');
         if (dragOverlay && e.detail > 1) {
@@ -364,6 +486,8 @@ document.addEventListener('touchmove', moveActiveElement, { passive: true });
 document.addEventListener('touchend', stopActiveElement);
 
 function injectCanvasNode(htmlContent) {
+    saveCanvasState(); // Save state before inserting new element
+    
     const card = document.createElement('div');
     card.className = 'canvas-direct-element';
     card.style.left = `${Math.floor(Math.random() * 60) + 30}px`;
@@ -377,7 +501,10 @@ function injectCanvasNode(htmlContent) {
     const delBtn = document.createElement('button');
     delBtn.className = 'element-delete-btn';
     delBtn.innerHTML = '&times;';
-    delBtn.onclick = () => card.remove();
+    delBtn.onclick = () => {
+        saveCanvasState();
+        card.remove();
+    };
     card.appendChild(delBtn);
 
     const resizeHandle = document.createElement('div');
@@ -389,6 +516,7 @@ function injectCanvasNode(htmlContent) {
 
     const startResize = (e) => {
         e.stopPropagation();
+        saveCanvasState();
         isResizing = true;
         initialWidth = card.offsetWidth;
         initialHeight = card.offsetHeight;
@@ -722,31 +850,20 @@ function handleAssetCapture(event) {
         
         const formData = new FormData();
         formData.append('file', file);
-
-        // Upload recorded mobile file to Flask backend for permanent storage
         fetch('/api/upload', { method: 'POST', body: formData })
             .then(res => res.json())
             .then(data => {
-                if (!data.url) {
-                    alert("Video upload failed. Please try again.");
-                    return;
-                }
-                const serverVideoUrl = data.url;
+                const src = data.url || URL.createObjectURL(file);
                 const fileType = file.type || 'video/mp4';
-
                 injectCanvasNode(`
                     <div class="resizable-media-wrapper" style="width: 100%; height: 100%; position: relative;">
                         <video controls playsinline webkit-playsinline preload="metadata" style="width: 100%; height: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); object-fit: cover;">
-                            <source src="${serverVideoUrl}" type="${fileType}">
-                            <source src="${serverVideoUrl}" type="video/mp4">
-                            Your browser does not support playing this video format.
+                            <source src="${src}" type="${fileType}">
+                            <source src="${src}" type="video/mp4">
+                            Your browser does not support this video format.
                         </video>
                     </div>
                 `);
-            })
-            .catch(err => {
-                console.error("Video upload error:", err);
-                alert("Failed to upload video to server.");
             });
 
     } else if (targetUploadType.includes('audio')) {
@@ -759,9 +876,7 @@ function handleAssetCapture(event) {
                 const src = data.url || URL.createObjectURL(file);
                 injectCanvasNode(`
                     <div class="clean-audio-wrapper" style="width: 100%; position: relative; background: #ffffff; padding: 6px; border-radius: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                        <!-- Drag overlay sitting on top -->
                         <div class="audio-drag-overlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 5; cursor: move;"></div>
-                        <!-- Native player untouched underneath -->
                         <audio src="${src}" controls playsinline webkit-playsinline style="width: 100%; height: 40px; display: block; position: relative; z-index: 1; border-radius: 30px; touch-action: auto;"></audio>
                     </div>
                 `);
@@ -839,7 +954,7 @@ function publishCanvasToFeed() {
     directElements.forEach(element => {
         const clone = element.cloneNode(true);
 
-        // Remove ONLY the invisible drag overlay, leave the <audio> tag intact!
+        // Strip editor toolbars & drag overlays (Preserving <audio> tag)
         clone.querySelectorAll('.docs-toolbar, .element-delete-btn, .element-resize-handle, select, input, button, .line-control-panel, .floating-editor-tools, .media-drag-header, .audio-drag-overlay').forEach(ui => ui.remove());
 
         clone.querySelectorAll('[contenteditable="true"]').forEach(editable => {
@@ -847,22 +962,6 @@ function publishCanvasToFeed() {
             editable.style.outline = 'none';
         });
 
-        // Ensure audio & video elements are explicitly styled for feed playback
-        clone.querySelectorAll('video, audio').forEach(media => {
-            media.setAttribute('playsinline', 'true');
-            media.setAttribute('webkit-playsinline', 'true');
-            media.setAttribute('controls', 'true');
-            media.style.pointerEvents = 'auto';
-            media.style.touchAction = 'manipulation';
-            media.style.display = 'block';
-        });
-
-        // Ensure wrapper allows clicking audio controls
-        const audioWrapper = clone.querySelector('.clean-audio-wrapper');
-        if (audioWrapper) {
-            audioWrapper.style.pointerEvents = 'auto';
-        }
-        // Safe style string parsing logic
         const leftStyle = element.style.left || '';
         const topStyle = element.style.top || '';
         const widthStyle = element.style.width || '';
@@ -901,14 +1000,19 @@ function publishCanvasToFeed() {
         clone.style.zIndex = element.style.zIndex || 10;
         if (element.style.transform) clone.style.transform = element.style.transform;
         
-        // Mobile inline media controls enablement
         clone.querySelectorAll('video, audio').forEach(media => {
             media.setAttribute('playsinline', 'true');
             media.setAttribute('webkit-playsinline', 'true');
             media.setAttribute('controls', 'true');
             media.style.pointerEvents = 'auto';
             media.style.touchAction = 'manipulation';
+            media.style.display = 'block';
         });
+
+        const audioWrapper = clone.querySelector('.clean-audio-wrapper');
+        if (audioWrapper) {
+            audioWrapper.style.pointerEvents = 'auto';
+        }
 
         clone.style.pointerEvents = 'auto';
         compositeElementsHTML += clone.outerHTML;
