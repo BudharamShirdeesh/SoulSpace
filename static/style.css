@@ -1461,3 +1461,23 @@ input:checked + .slider:before { transform: translateX(20px); }
     border-radius: 14px !important; 
     box-shadow: 0 4px 14px rgba(129, 140, 248, 0.4) !important; 
 }
+
+/* POST WATERMARK STYLING */
+.post-watermark {
+    position: absolute !important;
+    bottom: 10px !important;
+    right: 14px !important;
+    z-index: 100 !important;
+    pointer-events: none !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    color: rgba(0, 0, 0, 0.5) !important;
+    background: rgba(255, 255, 255, 0.7) !important;
+    padding: 3px 8px !important;
+    border-radius: 6px !important;
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+    border: 1px solid rgba(0, 0, 0, 0.08) !important;
+    letter-spacing: 0.02em !important;
+    user-select: none !important;
+}
