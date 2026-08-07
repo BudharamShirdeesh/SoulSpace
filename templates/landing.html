@@ -156,11 +156,27 @@
 
                 <div class="toolbox-menu-divider"></div>
 
-                <!-- Paper Background Color -->
-                <div class="toolbox-section-title">Paper Mood</div>
+                <!-- Paper Background & Texture -->
+                <div class="toolbox-section-title">Paper Mood & Texture</div>
                 <div class="vertical-tool-row">
                     <span style="font-size:11px; color:#94a3b8; font-weight:600;">Color:</span>
                     <input type="color" id="canvas-bg-picker" value="#ffffff" oninput="changeCanvasMoodColor(this.value)" onchange="changeCanvasMoodColor(this.value)" style="width:30px; height:30px; border:none; background:none; cursor:pointer;" title="Pick Paper Color">
+                </div>
+                <div class="vertical-tool-row" style="margin-top: 6px;">
+                    <span style="font-size:11px; color:#94a3b8; font-weight:600;">Texture:</span>
+                    <select id="canvas-texture-picker" onchange="changeCanvasTexture(this.value)" style="padding: 4px; border-radius: 6px; font-size: 11px; flex: 1; background: #1e293b; color: #fff; border: 1px solid var(--card-border);">
+                        <option value="none" selected>Plain</option>
+                        <option value="dotted">Dotted Grid</option>
+                        <option value="horizontal">Horizontal Lines</option>
+                        <option value="vertical">Vertical Lines</option>
+                        <option value="grid">Square Grid</option>
+                        <option value="diagonal">Diagonal Stripes</option>
+                        <option value="checkerboard">Checkerboard</option>
+                        <option value="zigzag">Zigzag / Chevron</option>
+                        <option value="honeycomb">Honeycomb Mesh</option>
+                        <option value="crosshatch">Crosshatch Weave</option>
+                        <option value="grain">Film Grain / Noise</option>
+                    </select>
                 </div>
             </div>
         </div>
@@ -194,6 +210,6 @@
         </button>
     </nav>
 
-    <script src="{{ url_for('static', filename='canvas.js') }}?v=3.0"></script>
+    <script src="{{ url_for('static', filename='canvas.js') }}?v=4.0"></script>
 </body>
 </html>
