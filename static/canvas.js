@@ -6,6 +6,7 @@ let totalUploadedImageSizeMB = 0;
 // UNDO & REDO STATE MANAGEMENT
 let undoStack = [];
 let redoStack = [];
+let currentCanvasTexture = 'none';
 
 document.addEventListener("DOMContentLoaded", () => {
     loadGlobalFeedFromBackend();
@@ -37,6 +38,7 @@ function renderPostToFeed(post) {
 
     const baseWidth = post.canvas_width || 1000;
     const baseHeight = post.canvas_height || 500;
+    const textureClass = post.bg_texture && post.bg_texture !== 'none' ? `texture-${post.bg_texture}` : '';
 
     const article = document.createElement('article');
     article.className = 'feed-post dynamic-new-post-animation';
@@ -51,7 +53,7 @@ function renderPostToFeed(post) {
             </div>
         </div>
 
-        <div class="post-canvas-content" data-base-width="${baseWidth}" data-base-height="${baseHeight}" style="background-color: ${post.bg_color || '#ffffff'}; position: relative; width: 100%; aspect-ratio: ${baseWidth} / ${baseHeight}; overflow: hidden; border-radius: 12px; border: 1px solid #e5e0d8;">
+        <div class="post-canvas-content ${textureClass}" data-base-width="${baseWidth}" data-base-height="${baseHeight}" style="background-color: ${post.bg_color || '#ffffff'}; position: relative; width: 100%; aspect-ratio: ${baseWidth} / ${baseHeight}; overflow: hidden; border-radius: 12px; border: 1px solid #e5e0d8;">
             ${post.doodle_layer ? `<img src="${post.doodle_layer}" class="post-doodle-layer" style="position:absolute; top:0; left:0; width:100%; height:100%; object-fit:contain; pointer-events:none; z-index:1;">` : ''}
             
             <div class="post-2d-viewport" style="position: absolute; top:0; left:0; width: ${baseWidth}px; height: ${baseHeight}px; z-index: 2; transform-origin: 0 0;">
@@ -59,17 +61,17 @@ function renderPostToFeed(post) {
             </div>
 
             <!-- WATERMARK LAYER (BOTTOM RIGHT) -->
-            <div class="post-watermark" style="position: absolute; bottom: 10px; right: 14px; z-index: 100; pointer-events: none; font-size: 11px; font-weight: 600; color: rgba(0, 0, 0, 0.45); background: rgba(255, 255, 255, 0.65); padding: 3px 8px; border-radius: 6px; backdrop-filter: blur(4px); border: 1px solid rgba(0, 0, 0, 0.08); font-family: -apple-system, sans-serif;">
+            <div class="post-watermark">
                 ${post.author || '@username'} • ${post.formatted_date || ''}
             </div>
         </div>
 
         <div class="post-actions-bar">
-            <button class="like-btn" onclick="toggleLike(this, ${post.id})">
+            <button type="button" class="like-btn" onclick="toggleLike(this, ${post.id})">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                 <span class="like-count">${post.likes || 0}</span>
             </button>
-            <button class="share-btn" onclick="sharePost()">
+            <button type="button" class="share-btn" onclick="sharePost()">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                 <span>Share</span>
             </button>
@@ -198,6 +200,25 @@ function logoutUser() {
     window.location.href = '/';
 }
 
+// VERTICAL TOOLBOX DROPDOWN CONTROLLERS
+function toggleToolboxMenu(event) {
+    if (event) event.stopPropagation();
+    const menu = document.getElementById('vertical-toolbox-menu');
+    if (menu) menu.classList.toggle('hidden');
+}
+
+function closeToolboxMenu() {
+    const menu = document.getElementById('vertical-toolbox-menu');
+    if (menu) menu.classList.add('hidden');
+}
+
+document.addEventListener('click', (event) => {
+    const container = document.querySelector('.studio-toolbox-dropdown-container');
+    if (container && !container.contains(event.target)) {
+        closeToolboxMenu();
+    }
+});
+
 // ============================================================
 // CANVAS DRAWING & SKETCH ENGINE
 // ============================================================
@@ -209,7 +230,7 @@ const pad = document.getElementById('sketch-pad');
 const ctx = pad ? pad.getContext('2d') : null;
 
 let isDrawing = false;
-let currentTool = 'select'; // DEFAULT TO SELECT / MOVE TOOL (PEN DISABLED BY DEFAULT)
+let currentTool = 'none'; // Default disabled pen mode to allow selecting/interacting with cards
 let targetUploadType = '';
 let activeElement = null;
 let startX = 0, startY = 0;
@@ -230,7 +251,6 @@ function saveCanvasState() {
     if (!pad) return;
     const doodleData = ctx.getImageData(0, 0, pad.width, pad.height);
     
-    // Save DOM elements snapshot
     const elementsSnapshot = [];
     if (universe) {
         universe.querySelectorAll('.canvas-direct-element').forEach(el => {
@@ -238,22 +258,14 @@ function saveCanvasState() {
         });
     }
 
-    undoStack.push({
-        doodle: doodleData,
-        elements: elementsSnapshot
-    });
-
-    // Limit undo stack to 25 states
+    undoStack.push({ doodle: doodleData, elements: elementsSnapshot });
     if (undoStack.length > 25) undoStack.shift();
-    
-    // Clear redo stack on new action
     redoStack = [];
 }
 
 function undoCanvasState() {
     if (undoStack.length === 0) return;
 
-    // Save current state to redo stack
     const currentDoodle = ctx.getImageData(0, 0, pad.width, pad.height);
     const currentElements = [];
     if (universe) {
@@ -261,11 +273,9 @@ function undoCanvasState() {
     }
     redoStack.push({ doodle: currentDoodle, elements: currentElements });
 
-    // Restore previous state
     const previousState = undoStack.pop();
     ctx.putImageData(previousState.doodle, 0, 0);
 
-    // Re-render HTML elements
     if (universe) {
         universe.querySelectorAll('.canvas-direct-element').forEach(el => el.remove());
         previousState.elements.forEach(html => {
@@ -281,7 +291,6 @@ function undoCanvasState() {
 function redoCanvasState() {
     if (redoStack.length === 0) return;
 
-    // Save current state to undo stack
     const currentDoodle = ctx.getImageData(0, 0, pad.width, pad.height);
     const currentElements = [];
     if (universe) {
@@ -289,11 +298,9 @@ function redoCanvasState() {
     }
     undoStack.push({ doodle: currentDoodle, elements: currentElements });
 
-    // Restore redo state
     const nextState = redoStack.pop();
     ctx.putImageData(nextState.doodle, 0, 0);
 
-    // Re-render HTML elements
     if (universe) {
         universe.querySelectorAll('.canvas-direct-element').forEach(el => el.remove());
         nextState.elements.forEach(html => {
@@ -314,14 +321,24 @@ function toggleCanvasOverlay(shouldShow) {
         redoStack = [];
         
         currentCanvasBgColor = '#ffffff';
-        if (universe) universe.style.setProperty('background-color', '#ffffff', 'important');
+        currentCanvasTexture = 'none';
+
+        if (universe) {
+            universe.style.setProperty('background-color', '#ffffff', 'important');
+        }
+
         const colorPicker = document.getElementById('canvas-bg-picker');
         if (colorPicker) colorPicker.value = '#ffffff';
+
+        const texturePicker = document.getElementById('canvas-texture-picker');
+        if (texturePicker) texturePicker.value = 'none';
+
+        changeCanvasTexture('none');
 
         setTimeout(() => {
             initPad();
             clearDoodles();
-            setDrawingTool('select'); // Default to Select mode on canvas open
+            setDrawingTool('none');
         }, 50);
         
         if (universe) universe.querySelectorAll('.canvas-direct-element').forEach(el => el.remove());
@@ -338,26 +355,42 @@ function changeCanvasMoodColor(colorHex) {
     }
 }
 
+function changeCanvasTexture(textureName) {
+    currentCanvasTexture = textureName;
+    const universeEl = document.getElementById('canvas-universe');
+    if (!universeEl) return;
+
+    // Remove all previous texture classes
+    const allTextures = [
+        'texture-dotted', 'texture-horizontal', 'texture-vertical', 
+        'texture-grid', 'texture-diagonal', 'texture-checkerboard', 
+        'texture-zigzag', 'texture-honeycomb', 'texture-crosshatch', 'texture-grain'
+    ];
+    universeEl.classList.remove(...allTextures);
+
+    // Apply newly selected texture
+    if (textureName !== 'none') {
+        universeEl.classList.add(`texture-${textureName}`);
+    }
+}
+// TOGGLE PEN / ERASER ON REPEATED CLICKS
 function setDrawingTool(tool) {
     const penBtn = document.getElementById('pen-toggle-btn');
     const eraserBtn = document.getElementById('eraser-toggle-btn');
 
-    // Toggle off if clicking the currently active tool
     if (currentTool === tool) {
         currentTool = 'none';
         if (penBtn) penBtn.classList.remove('active');
         if (eraserBtn) eraserBtn.classList.remove('active');
-        if (pad) pad.style.pointerEvents = 'none'; // Disables drawing, unlocks clicking elements
+        if (pad) pad.style.pointerEvents = 'none';
         return;
     }
 
-    // Activate selected tool
     currentTool = tool;
     if (penBtn) penBtn.classList.toggle('active', tool === 'pen');
     if (eraserBtn) eraserBtn.classList.toggle('active', tool === 'eraser');
 
-    // Enable sketch pad for drawing
-    if (pad) pad.style.pointerEvents = 'auto';
+    if (pad) pad.style.pointerEvents = (tool === 'pen' || tool === 'eraser') ? 'auto' : 'none';
 }
 
 function clearDoodles() {
@@ -405,27 +438,6 @@ function drawStroke(e) {
     }
 }
 
-// VERTICAL TOOLBOX DROPDOWN CONTROLLERS
-// VERTICAL TOOLBOX DROPDOWN CONTROLLERS
-function toggleToolboxMenu(event) {
-    if (event) event.stopPropagation();
-    const menu = document.getElementById('vertical-toolbox-menu');
-    if (menu) menu.classList.toggle('hidden');
-}
-
-function closeToolboxMenu() {
-    const menu = document.getElementById('vertical-toolbox-menu');
-    if (menu) menu.classList.add('hidden');
-}
-
-// Close menu when clicking on the workspace
-document.addEventListener('click', (event) => {
-    const container = document.querySelector('.studio-toolbox-dropdown-container');
-    if (container && !container.contains(event.target)) {
-        closeToolboxMenu();
-    }
-});
-
 function endStroke() {
     isDrawing = false;
     if (ctx) ctx.beginPath();
@@ -446,7 +458,7 @@ function makeElementInteractive(element) {
     const startDrag = (e) => {
         if (e.target.closest('.element-delete-btn') || e.target.closest('.element-resize-handle') || ['INPUT', 'SELECT', 'OPTION'].includes(e.target.tagName)) return;
 
-        saveCanvasState(); // Save state before moving an element
+        saveCanvasState();
 
         const dragOverlay = element.querySelector('.audio-drag-overlay');
         if (dragOverlay && e.detail > 1) {
@@ -492,7 +504,7 @@ document.addEventListener('touchmove', moveActiveElement, { passive: true });
 document.addEventListener('touchend', stopActiveElement);
 
 function injectCanvasNode(htmlContent) {
-    saveCanvasState(); // Save state before inserting new element
+    saveCanvasState();
     
     const card = document.createElement('div');
     card.className = 'canvas-direct-element';
@@ -928,7 +940,7 @@ function sharePost() {
     alert('Post link copied to clipboard!');
 }
 
-// 5. PUBLISH CANVAS DIRECT TO FEED (SAFE EXECUTION ENGINE)
+// PUBLISH CANVAS DIRECT TO FEED
 function publishCanvasToFeed() {
     const universeElement = document.getElementById('canvas-universe');
     if (!universeElement) {
@@ -960,7 +972,6 @@ function publishCanvasToFeed() {
     directElements.forEach(element => {
         const clone = element.cloneNode(true);
 
-        // Strip editor toolbars & drag overlays (Preserving <audio> tag)
         clone.querySelectorAll('.docs-toolbar, .element-delete-btn, .element-resize-handle, select, input, button, .line-control-panel, .floating-editor-tools, .media-drag-header, .audio-drag-overlay').forEach(ui => ui.remove());
 
         clone.querySelectorAll('[contenteditable="true"]').forEach(editable => {
@@ -1036,6 +1047,7 @@ function publishCanvasToFeed() {
         avatar_initials: name.substring(0, 2).toUpperCase(),
         formatted_date: formattedTimestamp,
         bg_color: currentCanvasBgColor || '#ffffff',
+        bg_texture: currentCanvasTexture,
         doodle_layer: hasDoodles ? doodleDataUrl : null,
         html_content: compositeElementsHTML,
         canvas_width: VIRTUAL_BASE_WIDTH,
