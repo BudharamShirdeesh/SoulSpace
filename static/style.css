@@ -1481,3 +1481,89 @@ input:checked + .slider:before { transform: translateX(20px); }
     letter-spacing: 0.02em !important;
     user-select: none !important;
 }
+
+/* ============================================================
+   ALL CANVAS BACKGROUND TEXTURES (STUDIO & FEED)
+   ============================================================ */
+
+/* 1. Dotted Grid */
+.canvas-universe.texture-dotted,
+.post-canvas-content.texture-dotted {
+    background-image: radial-gradient(#cbd5e1 1.2px, transparent 1.2px) !important;
+    background-size: 20px 20px !important;
+}
+
+/* 2. Horizontal Lines */
+.canvas-universe.texture-horizontal,
+.post-canvas-content.texture-horizontal {
+    background-image: linear-gradient(to bottom, #e2e8f0 1px, transparent 1px) !important;
+    background-size: 100% 24px !important;
+}
+
+/* 3. Vertical Lines */
+.canvas-universe.texture-vertical,
+.post-canvas-content.texture-vertical {
+    background-image: linear-gradient(to right, #e2e8f0 1px, transparent 1px) !important;
+    background-size: 24px 100% !important;
+}
+
+/* 4. Square Grid */
+.canvas-universe.texture-grid,
+.post-canvas-content.texture-grid {
+    background-image: linear-gradient(to right, #e2e8f0 1px, transparent 1px),
+                      linear-gradient(to bottom, #e2e8f0 1px, transparent 1px) !important;
+    background-size: 24px 24px !important;
+}
+
+/* 5. Diagonal Stripes */
+.canvas-universe.texture-diagonal,
+.post-canvas-content.texture-diagonal {
+    background-image: repeating-linear-gradient(45deg, #cbd5e1 0, #cbd5e1 1px, transparent 0, transparent 50%) !important;
+    background-size: 16px 16px !important;
+}
+
+/* 6. Checkerboard */
+.canvas-universe.texture-checkerboard,
+.post-canvas-content.texture-checkerboard {
+    background-image: linear-gradient(45deg, #e2e8f0 25%, transparent 25%), 
+                      linear-gradient(-45deg, #e2e8f0 25%, transparent 25%), 
+                      linear-gradient(45deg, transparent 75%, #e2e8f0 75%), 
+                      linear-gradient(-45deg, transparent 75%, #e2e8f0 75%) !important;
+    background-size: 24px 24px !important;
+    background-position: 0 0, 0 12px, 12px -12px, -12px 0px !important;
+}
+
+/* 7. Zigzag / Chevron */
+.canvas-universe.texture-zigzag,
+.post-canvas-content.texture-zigzag {
+    background-image: linear-gradient(135deg, #cbd5e1 25%, transparent 25%), 
+                      linear-gradient(225deg, #cbd5e1 25%, transparent 25%), 
+                      linear-gradient(315deg, #cbd5e1 25%, transparent 25%), 
+                      linear-gradient(45deg, #cbd5e1 25%, transparent 25%) !important;
+    background-size: 24px 24px !important;
+    background-position: -12px 0, -12px 0, 0 0, 0 0 !important;
+}
+
+/* 8. Honeycomb Mesh */
+.canvas-universe.texture-honeycomb,
+.post-canvas-content.texture-honeycomb {
+    background-image: radial-gradient(circle at 50% 50%, transparent 60%, #cbd5e1 60%, #cbd5e1 65%, transparent 65%) !important;
+    background-size: 20px 20px !important;
+}
+
+/* 9. Crosshatch Weave */
+.canvas-universe.texture-crosshatch,
+.post-canvas-content.texture-crosshatch {
+    background-image: repeating-linear-gradient(0deg, #e2e8f0 0, #e2e8f0 1px, transparent 0, transparent 16px),
+                      repeating-linear-gradient(90deg, #e2e8f0 0, #e2e8f0 1px, transparent 0, transparent 16px) !important;
+    background-size: 16px 16px !important;
+}
+
+/* 10. Film Grain / Noise */
+.canvas-universe.texture-grain,
+.post-canvas-content.texture-grain {
+    background-image: radial-gradient(#94a3b8 0.8px, transparent 0.8px),
+                      radial-gradient(#64748b 0.8px, transparent 0.8px) !important;
+    background-size: 8px 8px !important;
+    background-position: 0 0, 4px 4px !important;
+}
