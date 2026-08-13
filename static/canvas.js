@@ -8,6 +8,11 @@ let undoStack = [];
 let redoStack = [];
 let currentCanvasTexture = 'none';
 
+// AI ORGANIZER GLOBAL STATE
+let currentCanvasDOMNodes = [];
+let currentAIOptions = [];
+let selectedOptionIndex = 0;
+
 document.addEventListener("DOMContentLoaded", () => {
     loadGlobalFeedFromBackend();
 });
@@ -60,7 +65,7 @@ function renderPostToFeed(post) {
                 ${post.html_content}
             </div>
 
-            <!-- WATERMARK LAYER (BOTTOM RIGHT) -->
+            <!-- WATERMARK LAYER -->
             <div class="post-watermark">
                 ${post.author || '@username'} • ${post.formatted_date || ''}
             </div>
@@ -107,7 +112,7 @@ window.addEventListener('orientationchange', applyResponsiveFeedScaling);
 
 // NOTIFICATIONS & SETTINGS MODALS
 function toggleNotificationsMenu(event) {
-    event.stopPropagation();
+    if (event) event.stopPropagation();
     const dropdown = document.getElementById('notifications-dropdown');
     if (dropdown) dropdown.classList.toggle('hidden');
 }
@@ -128,16 +133,22 @@ function openSettingsModal() {
     const isHiGreeting = localStorage.getItem("ss_display_greeting") === "true";
     const links = JSON.parse(localStorage.getItem("ss_links") || "[]");
 
-    document.getElementById('settings-username').value = handle.replace('@', '');
-    document.getElementById('settings-bio').value = bio;
-    document.getElementById('toggle-display-mode').checked = isHiGreeting;
+    const userInp = document.getElementById('settings-username');
+    const bioInp = document.getElementById('settings-bio');
+    const dispInp = document.getElementById('toggle-display-mode');
+
+    if (userInp) userInp.value = handle.replace('@', '');
+    if (bioInp) bioInp.value = bio;
+    if (dispInp) dispInp.checked = isHiGreeting;
 
     const linksContainer = document.getElementById('links-container');
-    linksContainer.innerHTML = '';
-    if (links.length > 0) {
-        links.forEach(link => addLinkInput(link.title, link.url));
-    } else {
-        addLinkInput();
+    if (linksContainer) {
+        linksContainer.innerHTML = '';
+        if (links.length > 0) {
+            links.forEach(link => addLinkInput(link.title, link.url));
+        } else {
+            addLinkInput();
+        }
     }
 
     modal.classList.remove('hidden');
@@ -230,7 +241,7 @@ const pad = document.getElementById('sketch-pad');
 const ctx = pad ? pad.getContext('2d') : null;
 
 let isDrawing = false;
-let currentTool = 'none'; // Default disabled pen mode to allow selecting/interacting with cards
+let currentTool = 'none';
 let targetUploadType = '';
 let activeElement = null;
 let startX = 0, startY = 0;
@@ -314,6 +325,14 @@ function redoCanvasState() {
 }
 
 function toggleCanvasOverlay(shouldShow) {
+    if (!overlay) return;
+
+    const navItems = document.querySelectorAll('.bottom-nav-item');
+    if (navItems.length >= 2) {
+        navItems[0].classList.toggle('active', !shouldShow);
+        navItems[1].classList.toggle('active', shouldShow);
+    }
+
     if (shouldShow) {
         overlay.classList.remove('hidden');
         totalUploadedImageSizeMB = 0;
@@ -343,7 +362,7 @@ function toggleCanvasOverlay(shouldShow) {
         
         if (universe) universe.querySelectorAll('.canvas-direct-element').forEach(el => el.remove());
     } else {
-        if (overlay) overlay.classList.add('hidden');
+        overlay.classList.add('hidden');
     }
 }
 
@@ -360,7 +379,6 @@ function changeCanvasTexture(textureName) {
     const universeEl = document.getElementById('canvas-universe');
     if (!universeEl) return;
 
-    // Remove all previous texture classes
     const allTextures = [
         'texture-dotted', 'texture-horizontal', 'texture-vertical', 
         'texture-grid', 'texture-diagonal', 'texture-checkerboard', 
@@ -368,12 +386,11 @@ function changeCanvasTexture(textureName) {
     ];
     universeEl.classList.remove(...allTextures);
 
-    // Apply newly selected texture
     if (textureName !== 'none') {
         universeEl.classList.add(`texture-${textureName}`);
     }
 }
-// TOGGLE PEN / ERASER ON REPEATED CLICKS
+
 function setDrawingTool(tool) {
     const penBtn = document.getElementById('pen-toggle-btn');
     const eraserBtn = document.getElementById('eraser-toggle-btn');
@@ -943,115 +960,68 @@ function sharePost() {
 // PUBLISH CANVAS DIRECT TO FEED
 function publishCanvasToFeed() {
     const universeElement = document.getElementById('canvas-universe');
-    if (!universeElement) {
-        alert("Error: Workspace canvas not found!");
-        return;
-    }
+    if (!universeElement) return;
 
     const directElements = universeElement.querySelectorAll('.canvas-direct-element');
-    const sketchPad = document.getElementById('sketch-pad');
-    const doodleContext = sketchPad ? sketchPad.getContext('2d') : null;
-    
-    const doodleDataUrl = sketchPad ? sketchPad.toDataURL() : null;
-    const hasDoodles = doodleContext ? doodleContext.getImageData(0, 0, sketchPad.width, sketchPad.height).data.some(channel => channel !== 0) : false;
-
-    if (directElements.length === 0 && !hasDoodles) {
-        alert("Please add text, shapes, doodles, or files before sharing!");
+    if (directElements.length === 0) {
+        alert("Please add content before sharing!");
         return;
     }
 
-    const currentStudioWidth = universeElement.clientWidth || 360;
-    const currentStudioHeight = universeElement.clientHeight || 500;
-    
-    const VIRTUAL_BASE_WIDTH = 1000;
+    const currentStudioWidth = universeElement.clientWidth || 1000;
+    const VIRTUAL_BASE_WIDTH = 1400;
     const deviceRatio = VIRTUAL_BASE_WIDTH / currentStudioWidth;
 
-    let maxBottomPx = 400;
+    let maxRightPx = VIRTUAL_BASE_WIDTH;
+    let maxBottomPx = 550;
     let compositeElementsHTML = '';
 
     directElements.forEach(element => {
         const clone = element.cloneNode(true);
 
-        clone.querySelectorAll('.docs-toolbar, .element-delete-btn, .element-resize-handle, select, input, button, .line-control-panel, .floating-editor-tools, .media-drag-header, .audio-drag-overlay').forEach(ui => ui.remove());
+        clone.querySelectorAll('.docs-toolbar, .element-delete-btn, .element-resize-handle, select, input, button, .line-control-panel, .floating-editor-tools').forEach(ui => ui.remove());
 
-        clone.querySelectorAll('[contenteditable="true"]').forEach(editable => {
-            editable.removeAttribute('contenteditable');
-            editable.style.outline = 'none';
-        });
+        let rawLeft = parseFloat(element.style.left) || element.offsetLeft || 0;
+        let rawTop = parseFloat(element.style.top) || element.offsetTop || 0;
+        let rawWidth = parseFloat(element.style.width) || element.offsetWidth || 310;
+        let rawHeight = parseFloat(element.style.height) || element.offsetHeight || 200;
 
-        const leftStyle = element.style.left || '';
-        const topStyle = element.style.top || '';
-        const widthStyle = element.style.width || '';
-        const heightStyle = element.style.height || '';
+        const virtualLeft = Math.round(rawLeft * deviceRatio);
+        const virtualTop = Math.round(rawTop * deviceRatio);
+        const virtualWidth = Math.round(rawWidth * deviceRatio);
+        const virtualHeight = Math.round(rawHeight * deviceRatio);
 
-        let rawLeft = parseFloat(leftStyle);
-        if (isNaN(rawLeft)) rawLeft = element.offsetLeft || 0;
-        if (leftStyle.includes('%')) rawLeft = (rawLeft / 100) * currentStudioWidth;
-
-        let rawTop = parseFloat(topStyle);
-        if (isNaN(rawTop)) rawTop = element.offsetTop || 0;
-        if (topStyle.includes('%')) rawTop = (rawTop / 100) * currentStudioHeight;
-
-        let rawWidth = parseFloat(widthStyle);
-        if (isNaN(rawWidth) || rawWidth <= 0) rawWidth = element.offsetWidth || 200;
-        if (widthStyle.includes('%')) rawWidth = (rawWidth / 100) * currentStudioWidth;
-
-        let rawHeight = parseFloat(heightStyle);
-        if (isNaN(rawHeight) || rawHeight <= 0) rawHeight = element.offsetHeight || 100;
-        if (heightStyle.includes('%')) rawHeight = (rawHeight / 100) * currentStudioHeight;
-
-        const virtualLeft = rawLeft * deviceRatio;
-        const virtualTop = rawTop * deviceRatio;
-        const virtualWidth = rawWidth * deviceRatio;
-        const virtualHeight = rawHeight * deviceRatio;
-
-        if (virtualTop + virtualHeight > maxBottomPx) {
-            maxBottomPx = virtualTop + virtualHeight + 40;
-        }
+        if (virtualLeft + virtualWidth > maxRightPx) maxRightPx = virtualLeft + virtualWidth + 50;
+        if (virtualTop + virtualHeight > maxBottomPx) maxBottomPx = virtualTop + virtualHeight + 50;
 
         clone.style.position = 'absolute';
         clone.style.left = `${virtualLeft}px`;
         clone.style.top = `${virtualTop}px`;
         clone.style.width = `${virtualWidth}px`;
         clone.style.height = `${virtualHeight}px`;
-        clone.style.zIndex = element.style.zIndex || 10;
-        if (element.style.transform) clone.style.transform = element.style.transform;
-        
+
         clone.querySelectorAll('video, audio').forEach(media => {
-            media.setAttribute('playsinline', 'true');
-            media.setAttribute('webkit-playsinline', 'true');
             media.setAttribute('controls', 'true');
             media.style.pointerEvents = 'auto';
-            media.style.touchAction = 'manipulation';
-            media.style.display = 'block';
         });
 
-        const audioWrapper = clone.querySelector('.clean-audio-wrapper');
-        if (audioWrapper) {
-            audioWrapper.style.pointerEvents = 'auto';
-        }
-
-        clone.style.pointerEvents = 'auto';
         compositeElementsHTML += clone.outerHTML;
     });
 
     const now = new Date();
     const formattedTimestamp = now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const isHiGreeting = localStorage.getItem("ss_display_greeting") === "true";
     const name = localStorage.getItem("ss_name") || "User";
     const handle = localStorage.getItem("ss_handle") || "@username";
-    const activeUser = isHiGreeting ? `Hi, ${name.split(' ')[0]}` : handle;
 
     const payload = {
-        author: activeUser,
+        author: handle,
         avatar_initials: name.substring(0, 2).toUpperCase(),
         formatted_date: formattedTimestamp,
         bg_color: currentCanvasBgColor || '#ffffff',
         bg_texture: currentCanvasTexture,
-        doodle_layer: hasDoodles ? doodleDataUrl : null,
         html_content: compositeElementsHTML,
-        canvas_width: VIRTUAL_BASE_WIDTH,
-        canvas_height: Math.max(500, maxBottomPx)
+        canvas_width: maxRightPx,
+        canvas_height: maxBottomPx
     };
 
     fetch('/api/posts', {
@@ -1065,15 +1035,10 @@ function publishCanvasToFeed() {
             toggleCanvasOverlay(false);
             loadGlobalFeedFromBackend();
             window.scrollTo({ top: 0, behavior: 'smooth' });
-        } else {
-            alert("Error publishing post: " + (data.message || "Failed to save post."));
         }
-    })
-    .catch(err => {
-        console.error("Error publishing post:", err);
-        alert("Failed to reach server. Please check your network connection.");
     });
 }
+
 
 function applyFontFamily(selectEl, fontFamilyValue) {
     if (!fontFamilyValue) return;
@@ -1090,4 +1055,436 @@ function applyFontFamily(selectEl, fontFamilyValue) {
             editor.style.fontFamily = fontFamilyValue;
         }
     }
+}
+
+// ============================================================
+// AI ORGANIZER ENGINE (EXACT DOM NODE PRESERVATION)
+// ============================================================
+function triggerAIOrganizer() {
+    const universe = document.getElementById('canvas-universe');
+    if (!universe) return;
+
+    const directElements = Array.from(universe.querySelectorAll('.canvas-direct-element'));
+    if (directElements.length === 0) {
+        alert("Please add files, images, video, audio, or text to the canvas first!");
+        return;
+    }
+
+    currentCanvasDOMNodes = directElements;
+    const elementsData = [];
+
+    directElements.forEach((el, index) => {
+        const videoEl = el.querySelector('video');
+        const imgEl = el.querySelector('img');
+        const audioEl = el.querySelector('audio');
+        const linkEl = el.querySelector('a');
+        const textEditor = el.querySelector('.docs-editable-editor, .shape-editable-text');
+
+        let mediaType = 'text';
+        let mediaSrc = '';
+
+        if (videoEl) {
+            mediaType = 'video';
+            const srcTag = videoEl.querySelector('source');
+            mediaSrc = videoEl.src || (srcTag ? srcTag.src : '') || videoEl.getAttribute('src') || '';
+        } else if (imgEl) {
+            mediaType = 'image';
+            mediaSrc = imgEl.src || imgEl.getAttribute('src') || '';
+        } else if (audioEl) {
+            mediaType = 'audio';
+            const audioSrcTag = audioEl.querySelector('source');
+            mediaSrc = audioEl.src || (audioSrcTag ? audioSrcTag.src : '') || audioEl.getAttribute('src') || '';
+        } else if (linkEl) {
+            mediaType = 'file';
+            mediaSrc = linkEl.href || linkEl.getAttribute('href') || '';
+        }
+
+        let rawText = textEditor ? (textEditor.innerText || textEditor.textContent) : el.innerText;
+        let cleanText = (rawText || '').trim().replace(/\s+/g, ' ');
+        cleanText = cleanText.replace(/\\ud83d\\udcc4|\ud83d\udcc4|📄/gi, '').replace('Your browser does not support this video format.', '').trim();
+
+        elementsData.push({
+            id: index,
+            text: cleanText || (mediaType === 'video' ? 'Video File' : `Item_${index + 1}`),
+            type: mediaType,
+            src: mediaSrc
+        });
+    });
+
+    const modal = document.getElementById('ai-organizer-modal');
+    const optionsList = document.getElementById('ai-options-list');
+    
+    if (modal) modal.classList.remove('hidden');
+    if (optionsList) {
+        optionsList.innerHTML = `
+            <div style="text-align: center; padding: 2rem; color: #94a3b8;">
+                ⏳ AI is categorizing videos, media, documents, and generating captions...
+            </div>
+        `;
+    }
+
+    fetchAILayoutOptions(elementsData);
+}
+
+function fetchAILayoutOptions(elementsData, customPrompt = '') {
+    fetch('/api/ai-organize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ elements: elementsData, custom_prompt: customPrompt })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.status === 'success' && Array.isArray(data.options)) {
+            currentAIOptions = data.options;
+            renderAIOptionPreviews(data.options);
+        } else {
+            alert("AI Error: " + (data.message || "Failed to generate options"));
+        }
+    })
+    .catch(err => {
+        console.error("AI Organize Error:", err);
+        alert("Could not connect to AI service.");
+    });
+}
+
+function renderAIOptionPreviews(options) {
+    const optionsList = document.getElementById('ai-options-list');
+    if (!optionsList) return;
+
+    optionsList.innerHTML = '';
+    
+    options.forEach((opt, idx) => {
+        const card = document.createElement('div');
+        card.className = `ai-option-card ${idx === 0 ? 'selected-option' : ''}`;
+        card.style.cssText = `
+            background: ${idx === 0 ? 'rgba(129, 140, 248, 0.15)' : 'rgba(255, 255, 255, 0.04)'};
+            border: 1px solid ${idx === 0 ? 'var(--accent)' : 'var(--card-border)'};
+            border-radius: 10px;
+            padding: 10px 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        `;
+        
+        card.onclick = () => selectOptionForPreview(idx);
+
+        card.innerHTML = `
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 10px; background: var(--accent); color: #fff; padding: 1px 6px; border-radius: 8px; font-weight: 700;">Option ${idx + 1}</span>
+                <span style="font-size: 10px; color: #94a3b8;">${Object.keys(opt.categories || {}).length} categories</span>
+            </div>
+            <strong style="font-size: 12px; color: #f8fafc; display: block; margin-top: 4px;">${opt.title}</strong>
+            <p style="font-size: 10px; color: #94a3b8; margin-top: 2px;">${opt.description}</p>
+        `;
+        optionsList.appendChild(card);
+    });
+
+    if (options.length > 0) {
+        selectOptionForPreview(0);
+    }
+}
+
+function requestAIReEdit() {
+    const promptInput = document.getElementById('ai-custom-prompt');
+    const customPrompt = promptInput ? promptInput.value.trim() : '';
+    triggerAIOrganizer();
+}
+
+function selectOptionForPreview(index) {
+    selectedOptionIndex = index;
+    const selectedOption = currentAIOptions[index];
+    if (!selectedOption) return;
+
+    const optionCards = document.querySelectorAll('.ai-option-card');
+    optionCards.forEach((card, idx) => {
+        if (idx === index) {
+            card.style.background = 'rgba(129, 140, 248, 0.15)';
+            card.style.borderColor = 'var(--accent)';
+        } else {
+            card.style.background = 'rgba(255, 255, 255, 0.04)';
+            card.style.borderColor = 'var(--card-border)';
+        }
+    });
+
+    const previewTitle = document.getElementById('preview-title');
+    if (previewTitle) previewTitle.innerText = `Previewing: Option ${index + 1} - ${selectedOption.title}`;
+
+    const stage = document.getElementById('ai-preview-stage');
+    if (!stage) return;
+
+    stage.innerHTML = '';
+
+    const categories = selectedOption.categories || {};
+
+    Object.keys(categories).forEach(catName => {
+        let items = categories[catName] || [];
+        if (!Array.isArray(items)) {
+            items = Object.values(items);
+        }
+        if (items.length === 0) return;
+
+        let itemsHTML = '';
+
+        items.forEach(item => {
+            const cleanText = (item.text || 'Document')
+                .replace(/\\ud83d\\udcc4|\ud83d\udcc4|📄/gi, '')
+                .replace('Your browser does not support this video format.', 'Video Presentation')
+                .trim();
+
+            if (item.type === 'image' && item.src) {
+                itemsHTML += `
+                    <div style="padding: 4px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 4px;">
+                        <img src="${item.src}" style="width: 100%; height: 50px; object-fit: cover; border-radius: 4px; display: block;">
+                    </div>
+                `;
+            } else if (item.type === 'video' && item.src) {
+                itemsHTML += `
+                    <div style="padding: 4px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 4px;">
+                        <video src="${encodeURI(item.src)}" controls playsinline style="width: 100%; height: 50px; object-fit: cover; border-radius: 4px; display: block;"></video>
+                    </div>
+                `;
+            } else if (item.type === 'audio' && item.src) {
+                itemsHTML += `
+                    <div style="padding: 4px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 4px;">
+                        <span style="font-size: 10px; color: #4338ca; font-weight: 600;">🎙️ Audio File</span>
+                    </div>
+                `;
+            } else if (item.type === 'file') {
+                itemsHTML += `
+                    <div style="padding: 4px 6px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 4px; margin-bottom: 4px; font-size: 10px; color: #2563eb; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                        📄 ${cleanText}
+                    </div>
+                `;
+            } else {
+                itemsHTML += `
+                    <div style="padding: 4px 6px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 4px; margin-bottom: 4px; font-size: 10px; color: #0f172a; max-height: 40px; overflow: hidden;">
+                        ✍️ ${item.text}
+                    </div>
+                `;
+            }
+        });
+
+        const miniCategoryCard = document.createElement('div');
+        miniCategoryCard.style.cssText = `
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 8px;
+            width: 170px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+            flex-shrink: 0;
+        `;
+        miniCategoryCard.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px;">
+                <strong style="font-size: 11px; color: #1e293b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">📁 ${catName}</strong>
+                <span style="font-size: 9px; color: #64748b; background: #f1f5f9; padding: 1px 4px; border-radius: 6px;">${items.length}</span>
+            </div>
+            <div style="display: flex; flex-direction: column;">
+                ${itemsHTML}
+            </div>
+        `;
+        stage.appendChild(miniCategoryCard);
+    });
+}
+
+function confirmSelectedAILayout() {
+    applyAILayout(selectedOptionIndex);
+}
+
+function applyAILayout(optionIndex) {
+    const selectedOption = currentAIOptions[optionIndex];
+    if (!selectedOption || !selectedOption.categories) return;
+
+    const universe = document.getElementById('canvas-universe');
+    if (!universe) return;
+
+    saveCanvasState();
+
+    // 1. Wipe all previous elements completely
+    universe.querySelectorAll('.canvas-direct-element').forEach(el => el.remove());
+
+    const categories = selectedOption.categories;
+    const catKeys = Object.keys(categories);
+
+    // 2. Alignment start coordinates without caption header offset
+    let startX = 40;
+    let startY = 40;
+    const cardWidth = 310;
+    const gapX = 20;
+    const gapY = 25;
+    
+    const maxCols = Math.max(1, Math.floor((universe.clientWidth - 40) / (cardWidth + gapX)));
+
+    catKeys.forEach((catName, idx) => {
+        let items = categories[catName];
+        if (!items) return;
+        if (!Array.isArray(items)) items = Object.values(items);
+        if (items.length === 0) return;
+
+        let itemsHTML = '';
+
+        items.forEach(item => {
+            const rawText = item.text || item.title || item.name || '';
+            const cleanDocName = rawText.replace(/\\ud83d\\udcc4|\ud83d\udcc4|📄/gi, '').trim();
+            const fileSrc = item.src || '';
+            const fileSrcLower = fileSrc.toLowerCase();
+
+            // 1. AUDIO PLAYER
+            if (item.type === 'audio' || catName === 'Audio Files' || fileSrcLower.includes('audio')) {
+                itemsHTML += `
+                    <div style="padding: 6px 10px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 30px; margin-bottom: 8px; display: flex; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,0.04);">
+                        <audio src="${encodeURI(fileSrc)}" controls playsinline style="width: 100%; height: 36px; display: block; border-radius: 20px;"></audio>
+                    </div>
+                `;
+            }
+            // 2. VIDEO PLAYER
+            else if (item.type === 'video' || catName === 'Videos') {
+                const videoUrl = encodeURI(fileSrc);
+                itemsHTML += `
+                    <div style="padding: 6px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px;">
+                        <video controls playsinline webkit-playsinline preload="metadata" style="width: 100%; max-height: 200px; border-radius: 6px; display: block; object-fit: cover; background: #000;">
+                            <source src="${videoUrl}" type="video/mp4">
+                            <source src="${videoUrl}" type="video/webm">
+                            <source src="${videoUrl}" type="video/quicktime">
+                            Your browser does not support playing this video format.
+                        </video>
+                    </div>
+                `;
+            }
+            // 3. IMAGE
+            else if (item.type === 'image' || catName === 'Images') {
+                itemsHTML += `
+                    <div style="padding: 6px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px;">
+                        <img src="${fileSrc}" style="width: 100%; max-height: 160px; object-fit: cover; border-radius: 6px; display: block;">
+                    </div>
+                `;
+            }
+            // 4. DOCUMENT
+            else if (item.type === 'file' || catName === 'Documents') {
+                const displayName = cleanDocName || fileSrc.split('/').pop() || 'View Document';
+                itemsHTML += `
+                    <div style="padding: 8px 10px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 6px; font-size: 11px; color: #2563eb; display: flex; align-items: center; gap: 6px;">
+                        <span style="font-size: 16px;">📄</span>
+                        <a href="${fileSrc}" target="_blank" style="color: #2563eb; font-weight: 700; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;">${displayName}</a>
+                    </div>
+                `;
+            }
+            // 5. TEXT NOTE
+            else {
+                itemsHTML += `
+                    <div style="padding: 10px; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 8px; color: #0f172a; line-height: 1.4; font-family: 'Caveat', cursive; font-size: 18px; word-break: break-word; overflow-wrap: anywhere; white-space: pre-wrap;">
+                        ${rawText || 'Text Note'}
+                    </div>
+                `;
+            }
+        });
+
+        const categoryCardHTML = `
+            <div class="ai-category-container" style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 14px; padding: 12px; width: 100%; height: 100%; box-sizing: border-box; box-shadow: 0 8px 20px -5px rgba(0,0,0,0.08); display: flex; flex-direction: column; overflow: hidden;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; flex-shrink: 0;">
+                    <strong style="font-size: 13px; color: #1e293b; font-weight: 700;">📁 ${catName}</strong>
+                    <span style="font-size: 10px; color: #64748b; background: #f1f5f9; padding: 2px 6px; border-radius: 12px; font-weight: 600;">${items.length} items</span>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 2px; flex: 1; overflow-y: auto;">
+                    ${itemsHTML}
+                </div>
+            </div>
+        `;
+
+        const col = idx % maxCols;
+        const row = Math.floor(idx / maxCols);
+
+        const posX = startX + col * (cardWidth + gapX);
+        const posY = startY + row * (440 + gapY);
+
+        injectCanvasNodePositionedElement(createNodeFromHTML(categoryCardHTML), posX, posY, cardWidth);
+    });
+
+    closeAIOrganizerModal();
+}
+
+function createNodeFromHTML(htmlString) {
+    const div = document.createElement('div');
+    div.innerHTML = htmlString.trim();
+    return div.firstChild;
+}
+
+function closeAIOrganizerModal() {
+    const modal = document.getElementById('ai-organizer-modal');
+    if (modal) modal.classList.add('hidden');
+}
+
+function injectCanvasNodePositionedElement(elementNode, posX, posY, width) {
+    saveCanvasState();
+    
+    const card = document.createElement('div');
+    card.className = 'canvas-direct-element';
+    card.style.left = `${posX}px`;
+    card.style.top = `${posY}px`;
+    card.style.zIndex = ++CanvasZIndexCounter;
+    card.style.position = 'absolute';
+    card.style.width = `${width}px`;
+    card.style.minWidth = '240px';
+    card.style.minHeight = '150px';
+
+    card.appendChild(elementNode);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'element-delete-btn';
+    delBtn.innerHTML = '&times;';
+    delBtn.onclick = () => {
+        saveCanvasState();
+        card.remove();
+    };
+    card.appendChild(delBtn);
+
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'element-resize-handle';
+    resizeHandle.title = 'Drag bottom-right corner to resize AI category layout';
+
+    let isResizing = false;
+    let initialWidth, initialHeight, initialX, initialY;
+
+    const startResize = (e) => {
+        e.stopPropagation();
+        saveCanvasState();
+        isResizing = true;
+        initialWidth = card.offsetWidth;
+        initialHeight = card.offsetHeight;
+        initialX = e.touches ? e.touches[0].clientX : e.clientX;
+        initialY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        const onMove = (moveEvent) => {
+            if (!isResizing) return;
+            const currentX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
+            const currentY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
+
+            const newWidth = Math.max(220, initialWidth + (currentX - initialX));
+            const newHeight = Math.max(150, initialHeight + (currentY - initialY));
+            
+            card.style.width = `${newWidth}px`;
+            card.style.height = `${newHeight}px`;
+        };
+
+        const onEnd = () => {
+            isResizing = false;
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onEnd);
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('touchend', onEnd);
+        };
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onEnd);
+        document.addEventListener('touchmove', onMove, { passive: true });
+        document.addEventListener('touchend', onEnd);
+    };
+
+    resizeHandle.addEventListener('mousedown', startResize);
+    resizeHandle.addEventListener('touchstart', startResize, { passive: true });
+
+    card.appendChild(resizeHandle);
+
+    const universe = document.getElementById('canvas-universe');
+    if (universe) universe.appendChild(card);
+    makeElementInteractive(card);
 }
