@@ -94,6 +94,62 @@
         </div>
     </div>
 
+    <!-- AI LAYOUT OPTIONS & RE-EDIT MODAL -->
+    <div class="modal-overlay hidden" id="ai-organizer-modal">
+    <div class="settings-card" style="max-width: 900px; width: 90vw;">
+        <div class="settings-header">
+            <h2>✨ AI Auto-Organize Layouts</h2>
+            <button type="button" class="card-del-btn" onclick="closeAIOrganizerModal()">&times;</button>
+        </div>
+
+        <!-- SPLIT VIEW CONTAINER -->
+        <div style="display: grid; grid-template-columns: 320px 1fr; gap: 16px; margin-top: 10px;">
+            
+            <!-- LEFT PANEL: OPTIONS LIST & RE-EDIT -->
+            <div style="display: flex; flex-direction: column; gap: 12px; border-right: 1px solid var(--card-border); padding-right: 14px;">
+                <p style="font-size: 11px; color: var(--text-secondary);">
+                    Select an option below to preview the organized layout on the right.
+                </p>
+
+                <!-- Options List Container -->
+                <div id="ai-options-list" style="display: flex; flex-direction: column; gap: 10px; max-height: 280px; overflow-y: auto;">
+                    <div style="text-align: center; padding: 2rem; color: #94a3b8;" id="ai-loading-spinner">
+                        ⏳ Generating 3 smart layouts...
+                    </div>
+                </div>
+
+                <!-- Re-Edit Custom Prompt Field -->
+                <div class="field" style="margin-top: auto; padding-top: 10px; border-top: 1px solid var(--card-border);">
+                    <label style="font-size: 11px;">Custom Instructions</label>
+                    <div style="display: flex; gap: 6px;">
+                        <input type="text" id="ai-custom-prompt" placeholder="e.g. Group by urgency..." style="flex: 1; font-size: 11px; padding: 6px 8px;">
+                        <button type="button" class="btn btn-solid" style="padding: 6px 10px; font-size: 11px;" onclick="requestAIReEdit()">Re-Generate</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT PANEL: LIVE LAYOUT PREVIEW -->
+            <div style="display: flex; flex-direction: column; background: #0f172a; border: 1px solid var(--card-border); border-radius: 12px; padding: 12px; overflow: hidden;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; border-bottom: 1px solid var(--card-border); padding-bottom: 6px;">
+                    <span id="preview-title" style="font-size: 12px; font-weight: 700; color: #f8fafc;">Layout Preview</span>
+                    <button type="button" id="apply-selected-btn" class="btn btn-solid" style="padding: 4px 12px; font-size: 11px;" onclick="confirmSelectedAILayout()">Apply Selected Layout</button>
+                </div>
+
+                <!-- Interactive Preview Stage -->
+                <div id="ai-preview-stage" style="flex: 1; min-height: 320px; max-height: 380px; overflow-y: auto; background: #ffffff; border-radius: 8px; padding: 12px; display: flex; flex-wrap: wrap; gap: 10px; align-content: flex-start;">
+                    <div style="width: 100%; text-align: center; color: #94a3b8; margin-top: 4rem; font-size: 12px;">
+                        Select an option on the left to see live preview
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div style="display: flex; gap: 10px; margin-top: 1rem;">
+            <button type="button" class="btn btn-outline" style="flex: 1;" onclick="closeAIOrganizerModal()">Cancel</button>
+        </div>
+    </div>
+</div>
     <!-- FULLSCREEN STUDIO CANVAS OVERLAY -->
     <div class="canvas-overlay hidden" id="creator-canvas-overlay">
         <div class="canvas-overlay-header">
@@ -111,6 +167,14 @@
             </button>
 
             <div class="vertical-toolbox-menu hidden" id="vertical-toolbox-menu">
+                <!-- Smart Features -->
+                <div class="toolbox-section-title">Smart Features</div>
+                <button type="button" class="tool-btn full-width-btn" style="background: linear-gradient(135deg, #6366f1, #a855f7); color: #fff;" onclick="triggerAIOrganizer(); closeToolboxMenu();">
+                    ✨ AI Auto-Organize
+                </button>
+
+                <div class="toolbox-menu-divider"></div>
+
                 <!-- Drawing Controls -->
                 <div class="toolbox-section-title">Drawing</div>
                 <div class="vertical-tool-row">
@@ -210,6 +274,6 @@
         </button>
     </nav>
 
-    <script src="{{ url_for('static', filename='canvas.js') }}?v=4.0"></script>
+    <script src="{{ url_for('static', filename='canvas.js') }}?v=5.0"></script>
 </body>
 </html>
