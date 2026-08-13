@@ -1567,3 +1567,74 @@ input:checked + .slider:before { transform: translateX(20px); }
     background-size: 8px 8px !important;
     background-position: 0 0, 4px 4px !important;
 }
+
+/* FEED POST CANVAS CONTAINER CLEANUP */
+.post-canvas-content {
+    position: relative !important;
+    overflow: hidden !important;
+    border-radius: 12px !important;
+    background: #ffffff;
+}
+
+/* Ensure outer cards don't overlap inside feed viewports */
+.post-canvas-content .canvas-direct-element {
+    box-sizing: border-box !important;
+    pointer-events: auto !important;
+}
+
+/* Fix z-index stacking inside feed posts */
+.post-canvas-content video,
+.post-canvas-content audio {
+    position: relative !important;
+    z-index: 25 !important;
+    pointer-events: auto !important;
+}
+
+.post-canvas-content .ai-category-container {
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+}
+
+/* ============================================================
+   PUBLISHED FEED POST CANVAS & SCALING FIX
+   ============================================================ */
+.post-canvas-content {
+    position: relative !important;
+    width: 100% !important;
+    overflow: hidden !important;
+    border-radius: 12px !important;
+    box-sizing: border-box !important;
+    display: block !important;
+}
+
+.post-2d-viewport {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    transform-origin: 0 0 !important;
+    -webkit-transform-origin: 0 0 !important;
+    overflow: visible !important;
+}
+
+/* Ensure AI category cards maintain exact pixel dimensions inside feed */
+.post-canvas-content .canvas-direct-element {
+    position: absolute !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+}
+
+.post-canvas-content .ai-category-container {
+    width: 100% !important;
+    height: 100% !important;
+    box-sizing: border-box !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08) !important;
+}
+
+/* Make media interactive in feed */
+.post-canvas-content video,
+.post-canvas-content audio,
+.post-canvas-content a {
+    pointer-events: auto !important;
+    position: relative !important;
+    z-index: 20 !important;
+}
